@@ -22,7 +22,7 @@ public class BlockChainService
 
     private void CreateGenesisBlock()
     {
-        var genesisBlock = new Block(0, DateTime.Parse("2024-06-01T00:00:00Z"), "0", 1, "Genesis Block");
+        var genesisBlock = new Block(0, DateTime.Parse("2024-06-01T00:00:00Z"), "0", Difficulty, "Genesis Block");
         _miningService.Mine(genesisBlock, Difficulty);
         Chain.Add(genesisBlock);
     }
@@ -39,9 +39,8 @@ public class BlockChainService
     public void AddBlock(string data)
     {
         var lastBlock = Chain.Last();
-        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty, data);
-        newBlock.Hash = _hashingService.ComputeHash(newBlock);
-        _miningService.Mine(newBlock, Difficulty);
+        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty ,data);
+        _miningService.Mine(newBlock, newBlock.DifficultyAtMining);
         Chain.Add(newBlock);
         if (newBlock.Index % _difficultyAdjustmentInterval == 0)
         {
@@ -55,7 +54,7 @@ public class BlockChainService
         var totalMiningTime = recentBlocks.Sum(b => b.MiningDurationSec);
         var averageMiningTime = totalMiningTime / _difficultyAdjustmentInterval;
 
-        if (averageMiningTime < _targetBlockTimeDuration*5)
+        if (averageMiningTime < _targetBlockTimeDuration/5) 
         {
             Difficulty+=2;
         }
@@ -63,15 +62,16 @@ public class BlockChainService
         {
             Difficulty++;
         }
+        else if (averageMiningTime/5 > _targetBlockTimeDuration )
+        {
+            Difficulty = Math.Max(1, Difficulty - 2);
+        }
         else if (averageMiningTime > _targetBlockTimeDuration )
         {
             Difficulty = Math.Max(1, Difficulty - 1);
         }
-        else if (averageMiningTime > _targetBlockTimeDuration*5 )
-        {
-            Difficulty = Math.Max(1, Difficulty - 2);
-        }
-        Difficulty = Math.Max(1, Math.Min(Difficulty, 6));
+
+        Difficulty = Math.Max(1, Math.Min(Difficulty, 10));
         Console.WriteLine($"Adjusted difficulty to {Difficulty}");
     }
 
@@ -89,7 +89,7 @@ public class BlockChainService
                 issues.Add($"Error in block #[{currentBlock.Index}]: Hash does not match block data (Data/Timestamp/Nonce changed).");
             }
 
-            if (!IsHashMeetingDifficulty(currentBlock.Hash))
+            if (!IsHashMeetingDifficulty(currentBlock.Hash, currentBlock.DifficultyAtMining))
             {
                 issues.Add($"Error in block #[{currentBlock.Index}]: Hash does not satisfy current difficulty.");
             }
@@ -107,10 +107,10 @@ public class BlockChainService
         return issues;
     }
 
-    private bool IsHashMeetingDifficulty(string hash)
+    private bool IsHashMeetingDifficulty(string hash, int difficulty)
     {
         if (string.IsNullOrEmpty(hash)) return false;
-        string prefix = new string('0', Difficulty);
+        string prefix = new string('0', difficulty);
         return hash.StartsWith(prefix);
     }
 

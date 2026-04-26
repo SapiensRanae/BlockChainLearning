@@ -15,6 +15,7 @@ public class DisplayService
             Console.WriteLine($"Previous Hash: {block.PreviousHash}");
             Console.WriteLine($"Nonce: {block.Nonce}");
             Console.WriteLine($"Mining Duration: {block.MiningDurationSec:F4}s");
+            Console.WriteLine($"Difficulty: {block.DifficultyAtMining}");
 
             Console.WriteLine(new string('-', 40));
         }

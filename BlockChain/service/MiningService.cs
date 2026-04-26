@@ -18,7 +18,7 @@ public class MiningService
         var stopwatch = Stopwatch.StartNew();
         while (true)
         {
-            block.Nonce++;
+           
             block.Hash = _hashingService.ComputeHash(block);
 
             if (block.Hash.StartsWith(target))
@@ -28,6 +28,7 @@ public class MiningService
                 block.MiningDurationSec = stopwatch.Elapsed.TotalSeconds;
                 return block.Nonce;
             }
+            block.Nonce++;
         }
     }
 }

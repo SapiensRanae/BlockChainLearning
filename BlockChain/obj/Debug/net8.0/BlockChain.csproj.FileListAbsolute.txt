@@ -1,0 +1,14 @@
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.GeneratedMSBuildEditorConfig.editorconfig
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.AssemblyInfoInputs.cache
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.AssemblyInfo.cs
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.csproj.CoreCompileInputs.cache
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/BlockChain
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/BlockChain.deps.json
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/BlockChain.runtimeconfig.json
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/BlockChain.dll
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/BlockChain.pdb
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.dll
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/refint/BlockChain.dll
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.pdb
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.genruntimeconfig.cache
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/ref/BlockChain.dll

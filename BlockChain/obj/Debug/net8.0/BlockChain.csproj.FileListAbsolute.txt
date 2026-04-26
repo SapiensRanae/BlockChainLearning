@@ -12,3 +12,4 @@
 /home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.pdb
 /home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.genruntimeconfig.cache
 /home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/ref/BlockChain.dll
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.sourcelink.json

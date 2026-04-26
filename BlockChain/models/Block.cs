@@ -13,12 +13,15 @@ public class Block
 
     public double MiningDurationSec { get; set; } = 0;
     
-    public Block(int index, DateTime timestamp, string previousHash, string data)
+    public int DifficultyAtMining { get; set; }
+    
+    public Block(int index, DateTime timestamp, string previousHash, int difficultyAtMining, string data)
     {
         Index = index;  
         Timestamp = timestamp;
         PreviousHash = previousHash;
         Data = data;
+        DifficultyAtMining = difficultyAtMining;
         Hash = "";
     }
 

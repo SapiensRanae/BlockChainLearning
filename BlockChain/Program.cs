@@ -15,5 +15,10 @@ displayService.DisplayChain(blockchainService.Chain);
 
 Console.WriteLine(explorer.getTotalVolume());
 Console.WriteLine(explorer.getLargestTransaction());
-Console.WriteLine(explorer.getAddressHistory("Alice"));
+
+foreach (var tx in explorer.getAddressHistory("Alice"))
+{
+    Console.WriteLine(tx);
+}
+
 

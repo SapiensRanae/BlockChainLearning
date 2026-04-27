@@ -37,4 +37,22 @@ public class BlockchainExplorer(List<Block> chain)
         }
         return history;
     }
+
+    public (Block? block, Transaction? tx) FindTransactionLocation(string txId)
+    {
+
+        foreach (var block in chain)
+        {
+            foreach (var tx in block.Transactions)
+            {
+                if (tx.Id == txId)
+                {
+                    return (block, tx);
+                }
+            }
+        }
+        
+        
+        return (null, null);
+    }
 }

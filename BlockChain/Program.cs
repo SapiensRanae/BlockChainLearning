@@ -21,4 +21,5 @@ foreach (var tx in explorer.getAddressHistory("Alice"))
     Console.WriteLine(tx);
 }
 
+Console.WriteLine(explorer.FindTransactionLocation(blockchainService.Chain.Last().Transactions.Last().Id));
 

@@ -6,8 +6,9 @@ namespace BlockChain.service;
 public class HashingService
 {
     public string ComputeHash(Block block)
-    {
-        string input = $"{block.Index}{block.Timestamp:O}{block.PreviousHash}{block.Data}{block.Nonce}";
+    {   
+        var txData = string.Concat(block.Transactions.Select(tx => tx.ToRawString()).ToArray());
+        string input = $"{block.Index}{block.Timestamp:O}{block.PreviousHash}{txData}{block.Nonce}";
         using (var sha256 = System.Security.Cryptography.SHA256.Create())
         {
             byte[] hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));

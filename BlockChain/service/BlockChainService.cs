@@ -22,7 +22,7 @@ public class BlockChainService
 
     private void CreateGenesisBlock()
     {
-        var genesisBlock = new Block(0, DateTime.Parse("2024-06-01T00:00:00Z"), "0", Difficulty, "Genesis Block");
+        var genesisBlock = new Block(0, DateTime.Parse("2024-06-01T00:00:00Z"), "0", Difficulty, new List<Transaction>());
         _miningService.Mine(genesisBlock, Difficulty);
         Chain.Add(genesisBlock);
     }
@@ -36,10 +36,18 @@ public class BlockChainService
         }
     }
     
-    public void AddBlock(string data)
+    public void AddBlock(List<Transaction> transactions)
     {
+        foreach (var tx in transactions)
+        {
+            var isValid = TransactionService.ValidateTransaction(tx);
+            if (!isValid.isValid)
+            {
+                throw new Exception($"Invalid transaction: {isValid.error}");
+            }
+        }
         var lastBlock = Chain.Last();
-        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty ,data);
+        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty , transactions);
         _miningService.Mine(newBlock, newBlock.DifficultyAtMining);
         Chain.Add(newBlock);
         if (newBlock.Index % _difficultyAdjustmentInterval == 0)
@@ -71,7 +79,7 @@ public class BlockChainService
             Difficulty = Math.Max(1, Difficulty - 1);
         }
 
-        Difficulty = Math.Max(1, Math.Min(Difficulty, 10));
+        Difficulty = Math.Max(1, Math.Min(Difficulty, 4));
         Console.WriteLine($"Adjusted difficulty to {Difficulty}");
     }
 

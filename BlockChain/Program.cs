@@ -1,15 +1,11 @@
-﻿using BlockChain.service;
+﻿using BlockChain.models;
+using BlockChain.service;
 
 var displayService = new DisplayService();
 var blockchainService = new BlockChainService();
 
-for (int i = 1; i <= 3; i++)
-{
-    blockchainService.AddBlock($"Block {i} Data");
-    blockchainService.AddBlock($"Block {i} Data");
-    blockchainService.AddBlock($"Block {i} Data");
-    displayService.DisplayChain(blockchainService.Chain);
-   
-}
-
-blockchainService.PrintDifficultyHistory();
+blockchainService.AddBlock(new List<Transaction>{TransactionService.CreateTransaction("Alice", "Bob", 10)});
+blockchainService.AddBlock(new List<Transaction>{TransactionService.CreateTransaction("Alice", "Bob", 10)});
+blockchainService.AddBlock(new List<Transaction>{TransactionService.CreateTransaction("Alice", "Bob", 10), TransactionService.CreateTransaction("Alice", "Bob", 10),TransactionService.CreateTransaction("Alice", "Bob", 10)} );
+blockchainService.AddBlock(new List<Transaction>{TransactionService.CreateTransaction("Alice", "Bob", 10)});
+displayService.DisplayChain(blockchainService.Chain);

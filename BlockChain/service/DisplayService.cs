@@ -10,12 +10,17 @@ public class DisplayService
         {
             Console.WriteLine($"Index: {block.Index}");
             Console.WriteLine($"Timestamp: {block.Timestamp}");
-            Console.WriteLine($"Data: {block.Data}");
+       
             Console.WriteLine($"Hash: {block.Hash}");
             Console.WriteLine($"Previous Hash: {block.PreviousHash}");
             Console.WriteLine($"Nonce: {block.Nonce}");
             Console.WriteLine($"Mining Duration: {block.MiningDurationSec:F4}s");
             Console.WriteLine($"Difficulty: {block.DifficultyAtMining}");
+
+            foreach (var tx in block.Transactions)
+            {
+               Console.WriteLine(tx.ToString()); 
+            }
 
             Console.WriteLine(new string('-', 40));
         }

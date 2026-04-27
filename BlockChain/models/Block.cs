@@ -8,19 +8,20 @@ public class Block
     
     public string PreviousHash { get; set; }
     public string Hash { get; set; }
-    public string Data { get; set; }
+   
+    public List<Transaction> Transactions { get; set; }
     public int Nonce { get; set; }
 
     public double MiningDurationSec { get; set; } = 0;
     
     public int DifficultyAtMining { get; set; }
     
-    public Block(int index, DateTime timestamp, string previousHash, int difficultyAtMining, string data)
+    public Block(int index, DateTime timestamp, string previousHash, int difficultyAtMining, List<Transaction> transactions)
     {
         Index = index;  
         Timestamp = timestamp;
         PreviousHash = previousHash;
-        Data = data;
+        Transactions = transactions;
         DifficultyAtMining = difficultyAtMining;
         Hash = "";
     }

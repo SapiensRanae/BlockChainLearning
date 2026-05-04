@@ -1,5 +1,48 @@
-﻿using BlockChain.models;
+﻿using System.Diagnostics;
+using BlockChain.models;
 using BlockChain.service;
+
+
+
+// blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction>());
+// blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction>());
+//
+// blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
+// blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
+// blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
+// blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
+// blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
+// blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
+//
+//
+// var txAliceToBob = transactionService.CreateTransaction(walletAlice.publicKey, walletBob.publicKey, 10, walletAlice.privateKey);
+// var txBobToAlice = transactionService.CreateTransaction(walletBob.publicKey, walletAlice.publicKey, 5, walletBob.privateKey);
+//
+// // Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
+// // Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
+//
+//
+// blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction> { txAliceToBob, txBobToAlice });
+//
+// // Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
+// // Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
+//
+// foreach (var tx in explorer.getAddressHistory(walletAlice.publicKey))
+// {
+// 	Console.WriteLine(tx);
+// }
+// Console.WriteLine(explorer.GetTotalCoins());
+//
+// blockchainService.BalanceCash.Clear();
+// blockchainService.RebuildState();
+//
+// foreach (var tx in explorer.getAddressHistory(walletAlice.publicKey))
+// {
+// 	Console.WriteLine(tx);
+// }
+// Console.WriteLine(explorer.GetTotalCoins());
+
+// displayService.DisplayChain(blockchainService.Chain);
 
 var displayService = new DisplayService();
 var blockchainService = new BlockChainService();
@@ -10,43 +53,18 @@ BlockchainExplorer explorer = new BlockchainExplorer(blockchainService.Chain);
 var walletAlice = new Wallet(new CryptoService());
 var walletBob = new Wallet(new CryptoService());
 
-blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction>());
-blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction>());
-
-blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
-blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
-blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
-blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
-blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
-blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
-
-
-var txAliceToBob = transactionService.CreateTransaction(walletAlice.publicKey, walletBob.publicKey, 10, walletAlice.privateKey);
-var txBobToAlice = transactionService.CreateTransaction(walletBob.publicKey, walletAlice.publicKey, 5, walletBob.privateKey);
-
-// Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
-// Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
-
-
-blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction> { txAliceToBob, txBobToAlice });
-
-// Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
-// Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
-
-foreach (var tx in explorer.getAddressHistory(walletAlice.publicKey))
+for(int i = 0; i < 100000; i++)
 {
-	Console.WriteLine(tx);
+    blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction>());
+
 }
-Console.WriteLine(explorer.GetTotalCoins());
 
-blockchainService.BalanceCash.Clear();
-blockchainService.RebuildState();
-
-foreach (var tx in explorer.getAddressHistory(walletAlice.publicKey))
-{
-	Console.WriteLine(tx);
-}
-Console.WriteLine(explorer.GetTotalCoins());
-
-// displayService.DisplayChain(blockchainService.Chain);
+var stopwatch = Stopwatch.StartNew();
+blockchainService.GetBalanceOld(walletAlice.publicKey);
+stopwatch.Stop();
+Console.WriteLine($"Old: {stopwatch.Elapsed}");
+var stopwatch2 = Stopwatch.StartNew();
+blockchainService.GetBalance(walletAlice.publicKey);
+stopwatch2.Stop();
+Console.WriteLine($"New: {stopwatch2.Elapsed}");
 

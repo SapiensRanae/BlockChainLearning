@@ -100,8 +100,30 @@ public class BlockChainService
             Difficulty = Math.Max(1, Difficulty - 1);
         }
 
-        Difficulty = Math.Max(1, Math.Min(Difficulty, 4));
+        Difficulty = Math.Max(1, Math.Min(Difficulty, 1));
         Console.WriteLine($"Adjusted difficulty to {Difficulty}");
+    }
+
+    public decimal GetBalanceOld(string address)
+    {
+        var balance = 0m;
+        foreach (var block in Chain)
+        {
+            foreach (var tx in block.Transactions)
+            {
+                if (tx.From == address)
+                {
+                    balance -= tx.Amount;
+                }
+
+                if (tx.To == address)
+                {
+                    balance += tx.Amount;
+                }
+            }
+        }
+
+        return balance;
     }
     
     public void RebuildState()

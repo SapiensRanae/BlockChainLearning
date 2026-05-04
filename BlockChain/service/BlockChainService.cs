@@ -103,7 +103,15 @@ public class BlockChainService
         Difficulty = Math.Max(1, Math.Min(Difficulty, 4));
         Console.WriteLine($"Adjusted difficulty to {Difficulty}");
     }
-
+    
+    public void RebuildState()
+    {
+        BalanceCash.Clear();
+        foreach (var block in Chain)
+        {
+            UpdateBalance(block);
+        }
+    }
     public decimal GetBalance(string address)
     {
         if (BalanceCash.ContainsKey(address))
@@ -112,6 +120,7 @@ public class BlockChainService
         }
         return 0;
     }
+
 
     private void UpdateBalance(Block block)
     {

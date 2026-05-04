@@ -24,15 +24,28 @@ blockchainService.MineBlock(walletBob.publicKey, new List<Transaction>());
 var txAliceToBob = transactionService.CreateTransaction(walletAlice.publicKey, walletBob.publicKey, 10, walletAlice.privateKey);
 var txBobToAlice = transactionService.CreateTransaction(walletBob.publicKey, walletAlice.publicKey, 5, walletBob.privateKey);
 
-Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
-Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
+// Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
+// Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
 
 
 blockchainService.MineBlock(walletAlice.publicKey, new List<Transaction> { txAliceToBob, txBobToAlice });
 
-Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
-Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
+// Console.WriteLine($"Alice's Balance: {blockchainService.GetBalance(walletAlice.publicKey)}");
+// Console.WriteLine($"Bob's Balance: {blockchainService.GetBalance(walletBob.publicKey)}");
 
+foreach (var tx in explorer.getAddressHistory(walletAlice.publicKey))
+{
+	Console.WriteLine(tx);
+}
+Console.WriteLine(explorer.GetTotalCoins());
+
+blockchainService.BalanceCash.Clear();
+blockchainService.RebuildState();
+
+foreach (var tx in explorer.getAddressHistory(walletAlice.publicKey))
+{
+	Console.WriteLine(tx);
+}
 Console.WriteLine(explorer.GetTotalCoins());
 
 // displayService.DisplayChain(blockchainService.Chain);

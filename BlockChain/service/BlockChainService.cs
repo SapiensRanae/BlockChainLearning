@@ -12,6 +12,8 @@ public class BlockChainService
     public int Reward = 100;
     private const double TargetBlockTimeDuration = 1;
     private const int DifficultyAdjustmentInterval = 1;
+    
+    public Dictionary<string, decimal> BalanceCash = new Dictionary<string, decimal>();
 
     public BlockChainService(int difficulty = 1)
     {
@@ -66,6 +68,7 @@ public class BlockChainService
         var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty, transactions);
         _miningService.Mine(newBlock, newBlock.DifficultyAtMining);
         Chain.Add(newBlock);
+        UpdateBalance(newBlock);
         UpdateReward(newBlock);
         if (newBlock.Index % DifficultyAdjustmentInterval == 0)
         {
@@ -103,27 +106,37 @@ public class BlockChainService
 
     public decimal GetBalance(string address)
     {
-        decimal balance = 0;
-        foreach (var block in Chain)
+        if (BalanceCash.ContainsKey(address))
         {
-            foreach (var tx in block.Transactions)
-            {
-                if (tx.From == address)
-                {
-                    balance -= tx.Amount;
-                }
-                else if (tx.To == address)
-                {
-                    balance += tx.Amount;
-                }
-            }
+            return BalanceCash[address];
         }
-        return balance;
+        return 0;
+    }
+
+    private void UpdateBalance(Block block)
+    {
+        foreach (var tx in block.Transactions)
+        {
+            if (tx.From != "COINBASE")
+            {
+                if (!BalanceCash.ContainsKey(tx.From))
+                {
+                    BalanceCash[tx.From] = 0;
+                }
+                BalanceCash[tx.From] -= tx.Amount;
+            }
+
+            if (!BalanceCash.ContainsKey(tx.To))
+            {
+                BalanceCash[tx.To] = 0;
+            }
+            BalanceCash[tx.To] += tx.Amount;
+        }
     }
 
 
     
-public List<string> AnalyzeChain()
+    public List<string> AnalyzeChain()
     {
         var issues = new List<string>();
 

@@ -122,6 +122,7 @@ public class BlockChainService
     }
 
 
+    
 public List<string> AnalyzeChain()
     {
         var issues = new List<string>();

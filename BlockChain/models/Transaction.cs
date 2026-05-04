@@ -44,16 +44,18 @@ namespace BlockChain.service
         public class TransactionService
         {
             private readonly CryptoService _cryptoService;
-            public TransactionService()
+            private static BlockChainService _blockChainService;
+            public TransactionService(BlockChainService blockChainService)
             {
                 _cryptoService = new CryptoService();
+                _blockChainService = blockChainService;
             }
 
-            public static Transaction CreateTransaction(string from, string to, decimal amount, string privateKey, BlockChainService blockChainService)
+            public Transaction CreateTransaction(string from, string to, decimal amount, string privateKey)
             {
                 var tx = new Transaction(from, to, amount);
                 SignTransaction(tx, privateKey);
-                var validation = ValidateTransaction(tx, blockChainService);
+                var validation = ValidateTransaction(tx, _blockChainService);
                 if (!validation.isValid)
                 {
                     throw new Exception($"Invalid transaction: {validation.error}");

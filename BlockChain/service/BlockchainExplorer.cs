@@ -55,4 +55,16 @@ public class BlockchainExplorer(List<Block> chain)
         
         return (null, null);
     }
+    public decimal GetTotalCoins()
+    {
+        var totalCoins = 0m;
+        foreach (var block in chain)
+        {
+            foreach (var tx in block.Transactions)
+            {
+                totalCoins += tx.Amount;
+            }
+        }
+        return totalCoins;
+    }
 }

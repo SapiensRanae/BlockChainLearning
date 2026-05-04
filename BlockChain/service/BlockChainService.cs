@@ -5,24 +5,27 @@ namespace BlockChain.service;
 public class BlockChainService
 {
     public List<Block> Chain { get; set; }
-    private HashingService _hashingService;
-    private MiningService _miningService;
-    public int Difficulty = 1;
-    private readonly double _targetBlockTimeDuration = 1;
-    private readonly int _difficultyAdjustmentInterval = 1;
-    
-    public BlockChainService(int Difficulty = 1)
+    private readonly HashingService _hashingService;
+    private readonly MiningService _miningService;
+    private int _halvingCounter = 5;
+    public int Difficulty;
+    public int Reward = 100;
+    private const double TargetBlockTimeDuration = 1;
+    private const int DifficultyAdjustmentInterval = 1;
+
+    public BlockChainService(int difficulty = 1)
     {
         Chain = new List<Block>();
         _hashingService = new HashingService();
         _miningService = new MiningService(_hashingService);
-        this.Difficulty = Difficulty;
+        Difficulty = difficulty;
         CreateGenesisBlock();
     }
 
     private void CreateGenesisBlock()
     {
-        var genesisBlock = new Block(0, DateTime.Parse("2024-06-01T00:00:00Z"), "0", Difficulty, new List<Transaction>());
+        var genesisBlock = new Block(0, DateTime.Parse("2024-06-01T00:00:00Z"), "0", Difficulty,
+            new List<Transaction>());
         _miningService.Mine(genesisBlock, Difficulty);
         Chain.Add(genesisBlock);
     }
@@ -35,22 +38,36 @@ public class BlockChainService
             Console.WriteLine($"Block #{block.Index}: Difficulty at Mining = {block.DifficultyAtMining}");
         }
     }
-    
-    public void AddBlock(List<Transaction> transactions)
+
+    private void UpdateReward(Block block)
+    {
+        if (block.Index % _halvingCounter == 0 && 0 < block.Index)
+        {
+            Reward = Math.Max(1, Reward / 2);
+
+            // Console.WriteLine($"Reward halved to {Reward}");
+        }
+    }
+
+    public void MineBlock(string minerAdress, List<Transaction> transactions)
     {
         foreach (var tx in transactions)
         {
-            var isValid = TransactionService.ValidateTransaction(tx);
+            var isValid = TransactionService.ValidateTransaction(tx, this);
             if (!isValid.isValid)
             {
                 throw new Exception($"Invalid transaction: {isValid.error}");
             }
         }
+
+        var rewardTx = new Transaction("COINBASE", minerAdress, Reward);
+        transactions.Add(rewardTx);
         var lastBlock = Chain.Last();
-        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty , transactions);
+        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty, transactions);
         _miningService.Mine(newBlock, newBlock.DifficultyAtMining);
         Chain.Add(newBlock);
-        if (newBlock.Index % _difficultyAdjustmentInterval == 0)
+        UpdateReward(newBlock);
+        if (newBlock.Index % DifficultyAdjustmentInterval == 0)
         {
             AdjustDifficulty();
         }
@@ -58,23 +75,24 @@ public class BlockChainService
 
     private void AdjustDifficulty()
     {
-        var recentBlocks = Chain.Skip(Chain.Count - _difficultyAdjustmentInterval).Take(_difficultyAdjustmentInterval).ToList();
+        var recentBlocks = Chain.Skip(Chain.Count - DifficultyAdjustmentInterval).Take(DifficultyAdjustmentInterval)
+            .ToList();
         var totalMiningTime = recentBlocks.Sum(b => b.MiningDurationSec);
-        var averageMiningTime = totalMiningTime / _difficultyAdjustmentInterval;
+        var averageMiningTime = totalMiningTime / DifficultyAdjustmentInterval;
 
-        if (averageMiningTime < _targetBlockTimeDuration/5) 
+        if (averageMiningTime < TargetBlockTimeDuration / 5)
         {
-            Difficulty+=2;
+            Difficulty += 2;
         }
-        else if (averageMiningTime < _targetBlockTimeDuration)
+        else if (averageMiningTime < TargetBlockTimeDuration)
         {
             Difficulty++;
         }
-        else if (averageMiningTime/5 > _targetBlockTimeDuration )
+        else if (averageMiningTime / 5 > TargetBlockTimeDuration)
         {
             Difficulty = Math.Max(1, Difficulty - 2);
         }
-        else if (averageMiningTime > _targetBlockTimeDuration )
+        else if (averageMiningTime > TargetBlockTimeDuration)
         {
             Difficulty = Math.Max(1, Difficulty - 1);
         }
@@ -83,7 +101,28 @@ public class BlockChainService
         Console.WriteLine($"Adjusted difficulty to {Difficulty}");
     }
 
-    public List<string> AnalyzeChain()
+    public decimal GetBalance(string address)
+    {
+        decimal balance = 0;
+        foreach (var block in Chain)
+        {
+            foreach (var tx in block.Transactions)
+            {
+                if (tx.From == address)
+                {
+                    balance -= tx.Amount;
+                }
+                else if (tx.To == address)
+                {
+                    balance += tx.Amount;
+                }
+            }
+        }
+        return balance;
+    }
+
+
+public List<string> AnalyzeChain()
     {
         var issues = new List<string>();
 

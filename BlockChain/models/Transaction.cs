@@ -11,6 +11,8 @@ namespace BlockChain.models
         public decimal Amount { get; set; }
 
         public DateTime Timestamp { get; set; }
+        
+        public byte[] Signature { get; set; }
 
         public Transaction(string from, string to, decimal amount)
         {
@@ -28,7 +30,7 @@ namespace BlockChain.models
 
         public override string ToString()
         {
-            return $"Transaction ID: {Id} From: {From} To: {To} Amount: {Amount} Timestamp: {Timestamp}";
+            return $"Transaction ID: {Id} From: {From} To: {To} Amount: {Amount} Timestamp: {Timestamp} Signature: {Signature}";
         }
 
 
@@ -41,15 +43,17 @@ namespace BlockChain.service
 
         public class TransactionService
         {
+            private readonly CryptoService _cryptoService;
             public TransactionService()
             {
-
+                _cryptoService = new CryptoService();
             }
 
-            public static Transaction CreateTransaction(string from, string to, decimal amount)
+            public static Transaction CreateTransaction(string from, string to, decimal amount, string privateKey, BlockChainService blockChainService)
             {
                 var tx = new Transaction(from, to, amount);
-                var validation = ValidateTransaction(tx);
+                SignTransaction(tx, privateKey);
+                var validation = ValidateTransaction(tx, blockChainService);
                 if (!validation.isValid)
                 {
                     throw new Exception($"Invalid transaction: {validation.error}");
@@ -60,13 +64,25 @@ namespace BlockChain.service
                 }
             }
 
-            public static (bool isValid, string error) ValidateTransaction(Transaction tx)
+            public static (bool isValid, string error) ValidateTransaction(Transaction tx, BlockChainService blockChainService )
             {
                 if (tx == null) return (false, "Transaction is null");
                 if (string.IsNullOrEmpty(tx.From)) return (false, "From address is required");
                 if (string.IsNullOrEmpty(tx.To)) return (false, "To address is required");
                 if (tx.Amount <= 0) return (false, "Amount must be greater than 0");
+                if (!CryptoService.VerifySignature( tx.ToRawString(), tx.Signature, tx.From)) return (false, "Invalid signature");
+                if (tx.Timestamp < DateTime.UtcNow.AddMinutes(-1)) return (false, "Transaction is too old");
+                if (tx.Timestamp > DateTime.UtcNow.AddMinutes(1)) return (false, "Transaction is too recent");
+                if (blockChainService.GetBalance(tx.From) < tx.Amount) return (false, "Insufficient balance");
                 return (true, null);
+            }
+
+            public static void SignTransaction(Transaction tx, string privateKey)
+            {
+                var signature = CryptoService.Sign(tx.ToRawString(), privateKey);
+                
+                tx.Signature = signature; 
+                
             }
         }
 

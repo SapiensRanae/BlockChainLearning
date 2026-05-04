@@ -25,6 +25,8 @@ public class Block
         DifficultyAtMining = difficultyAtMining;
         Hash = "";
     }
+    
+    
 
     public Block()
     {

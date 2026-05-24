@@ -1,4 +1,5 @@
 ﻿
+using System.Diagnostics;
 using BlockChain.models;
 using BlockChain.service;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +59,24 @@ void SimulateNewCain()
     blockchainService.ReplaceChain(newChain);
 }
 
+void Benchmark(){
+    var walletAlice = new Wallet(new CryptoService());
+
+    for(int i = 0; i < 100000; i++)
+
+    {
+        blockchainService.MinePendingTransactions(walletAlice.publicKey);
+    }
+    
+    var stopwatch = Stopwatch.StartNew();
+    blockchainService.GetBalanceOld(walletAlice.publicKey);
+    stopwatch.Stop();
+    Console.WriteLine($"Old: {stopwatch.Elapsed}");
+    var stopwatch2 = Stopwatch.StartNew();
+    blockchainService.GetBalance(walletAlice.publicKey);
+    stopwatch2.Stop();
+    Console.WriteLine($"New: {stopwatch2.Elapsed}");
+}
 
 while (true)
 {
@@ -71,6 +90,7 @@ while (true)
     Console.WriteLine("7. show balance");
     Console.WriteLine("8. save state (balances -> JSON)");
     Console.WriteLine("9. simulate new chain");
+    Console.WriteLine("10. benchmark");
     Console.WriteLine("0. exit");
     Console.Write("Enter command: ");
     
@@ -158,6 +178,9 @@ while (true)
             break;
         case "9":
             SimulateNewCain();
+            break;
+        case "10":
+            Benchmark();
             break;
         case "0":
             Console.WriteLine("Goodbye!");

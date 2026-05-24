@@ -62,10 +62,10 @@ public class BlockChainService
         if (transaction.From != "COINBASE")
         {
             var balance = GetBalance(transaction.From);
-            // if (balance < transaction.Amount + transaction.Fee)
-            // {
-            //     throw new Exception($"Wallet {transaction.From} has insufficient balance for this transaction.");
-            // }
+            if (balance < transaction.Amount + transaction.Fee)
+            {
+                throw new Exception($"Wallet {transaction.From} has insufficient balance for this transaction.");
+            }
             if (transaction.Fee < baseFee)
             {
                 throw new Exception($"Transaction {transaction.Id} has insufficient fee. Minimum fee is {baseFee}.");
@@ -76,7 +76,7 @@ public class BlockChainService
 
         if (transactionCount > 3)
         {
-            throw new Exception($"Wallet {transaction.From} has too many pending transactions in the mempool.");
+            InvalidOperationException ex = new InvalidOperationException($"Spam detected! Wallet {transaction.From} has too many pending transactions in the mempool.");
         }
         
         PendingTransactions.Add(transaction);

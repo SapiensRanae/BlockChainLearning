@@ -72,6 +72,7 @@ namespace BlockChain.service
 
             public static (bool isValid, string error) ValidateTransaction(Transaction tx)
             {
+                if (tx.From == "COINBASE") return (true, null); // Coinbase transactions are always valid
                 if (tx == null) return (false, "Transaction is null");
                 if (string.IsNullOrEmpty(tx.From)) return (false, "From address is required");
                 if (string.IsNullOrEmpty(tx.To)) return (false, "To address is required");

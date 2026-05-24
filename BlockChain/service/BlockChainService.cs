@@ -18,6 +18,7 @@ public class BlockChainService
     private readonly int livenessSeconds = 60;
     private const double TargetBlockTimeDuration = 1;
     private const int DifficultyAdjustmentInterval = 1;
+    private Dictionary<string, decimal> BalanceCashOld = new Dictionary<string, decimal>();
     
     public Dictionary<string, decimal> BalanceCash = new Dictionary<string, decimal>();
 
@@ -290,7 +291,11 @@ public class BlockChainService
 
     public void ReplaceChain(List<Block> newChain)
     {
-        if (newChain.Count <= Chain.Count) return;
+        if (newChain.Count <= Chain.Count)
+        {
+            Console.WriteLine($"The new chain{newChain.Count} is not longer than the current chain{Chain.Count}. Ignoring...");
+            return;
+        };
         var issues = AnalyzeChain(newChain);
         
         if(newChain.Sum(block => block.DifficultyAtMining) <= Chain.Sum(block => block.DifficultyAtMining))
@@ -301,16 +306,62 @@ public class BlockChainService
         {
             throw new Exception("The new chain is invalid: " + string.Join(", ", issues));
         }
+        Console.BackgroundColor = ConsoleColor.Yellow;
+        Console.ForegroundColor = ConsoleColor.Black;
+        Console.WriteLine($"Our node is old. We were in the past for{newChain.Count - Chain.Count} blocks. Replacing chain...");
+        Console.ResetColor();
+
+        foreach (var block in Chain)
+        {
+            if (!newChain.Contains(block))
+                    {
+                        foreach (var tx in block.Transactions)
+                        {
+                            if (tx.From != "COINBASE")
+                            {
+                                Console.BackgroundColor = ConsoleColor.Red;
+                                Console.WriteLine($"Removing tx {tx.Id} from our chain");
+                                Console.ResetColor();
+                                
+                            }
+                         
+                        }
+                    }
+            
+        }
+        
         Chain = newChain;
+        BalanceCashOld = new Dictionary<string, decimal>(BalanceCash);
         BalanceCash.Clear();
         foreach (var block in Chain)
         {
             UpdateBalance(block);
         }
+        DiffOldNewBalaneces();
 
         var mixedTxId = Chain.SelectMany(block => block.Transactions).Select(tx => tx.Id).ToHashSet();
+        PendingTransactions.RemoveAll(tx => mixedTxId.Contains(tx.Id));
+        Console.BackgroundColor = ConsoleColor.Green;
+        Console.WriteLine("Chain replaced.");
+        Console.ResetColor();
         
     }
+
+    private void DiffOldNewBalaneces()
+    {
+        foreach (var kv in BalanceCashOld)        {
+            var oldBalance = kv.Value;
+            var newBalance = BalanceCash.ContainsKey(kv.Key) ? BalanceCash[kv.Key] : 0;
+            if (oldBalance != newBalance)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"Address {kv.Key} balance changed from {oldBalance} to {newBalance}");
+                Console.ResetColor();
+            }
+        }
+    }
+
+
 
     private bool IsHashMeetingDifficulty(string hash, int difficulty)
     {

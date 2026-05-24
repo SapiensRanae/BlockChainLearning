@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 
 var service = new ServiceCollection();
-service.AddSingleton<BlockChain.service.BlockChainService>();
+service.AddTransient<BlockChain.service.BlockChainService>();
 service.AddSingleton<BlockChain.service.P2PServer, BlockChain.service.P2PServer>();
 service.AddSingleton<BlockChain.service.P2PClient, BlockChain.service.P2PClient>();
 service.AddSingleton<BlockChain.service.DisplayService>();
@@ -16,6 +16,8 @@ service.AddSingleton<BlockChain.service.CryptoService, BlockChain.service.Crypto
 var provider = service.BuildServiceProvider();
 
 var blockchainService = provider.GetRequiredService<BlockChain.service.BlockChainService>();
+var blockchainService2 = provider.GetRequiredService<BlockChain.service.BlockChainService>();
+
 var p2pServer = provider.GetRequiredService<BlockChain.service.P2PServer>();
 var p2pClient = provider.GetRequiredService<BlockChain.service.P2PClient>();
 var displayService = provider.GetRequiredService<BlockChain.service.DisplayService>();
@@ -36,6 +38,26 @@ if (!int.TryParse(portInput, out var port))
 
 p2pServer.Start(port);
 
+void SimulateNewCain()
+{
+
+    var secondWallet = new Wallet(cryptoService);
+    
+
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+    blockchainService2.MinePendingTransactions(secondWallet.publicKey);
+
+    var newChain = new List<Block>(blockchainService2.Chain);
+
+    Console.WriteLine("Simulating new chain with one additional block...");
+    blockchainService.ReplaceChain(newChain);
+}
+
 
 while (true)
 {
@@ -48,6 +70,7 @@ while (true)
     Console.WriteLine("6. show mempool");
     Console.WriteLine("7. show balance");
     Console.WriteLine("8. save state (balances -> JSON)");
+    Console.WriteLine("9. simulate new chain");
     Console.WriteLine("0. exit");
     Console.Write("Enter command: ");
     
@@ -132,6 +155,9 @@ while (true)
         case "8":
             // Save state (balances and some metadata) to JSON file in current directory
             blockchainService.SaveStateSnapshot();
+            break;
+        case "9":
+            SimulateNewCain();
             break;
         case "0":
             Console.WriteLine("Goodbye!");

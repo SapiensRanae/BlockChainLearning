@@ -91,16 +91,27 @@ public class BlockChainService
         }
     }
 
+    private int EvictStaleTransactions(int maxAgeSeconds)
+    {
+        var cutoff = DateTime.UtcNow.AddSeconds(-maxAgeSeconds);
+        var transactionsToDelete = PendingTransactions.Where(tx => tx.Timestamp < cutoff).ToList();
+
+        foreach (var transaction in transactionsToDelete)
+        {
+            PendingTransactions.Remove(transaction);
+        }
+
+        return transactionsToDelete.Count;
+    }
+
     public void MinePendingTransactions(string minerAdress)
     {
-        var transactionsToInclude = PendingTransactions.OrderByDescending(tx => tx.Fee - baseFee).ThenBy(tx => tx.Timestamp).Take(maxTransactionPerBlock).ToList();
-        var transactionsToDelete = transactionsToInclude.Where(tx => tx.Timestamp < DateTime.UtcNow.AddSeconds(-livenessSeconds)).ToList();
-        
-        foreach (var transaction in transactionsToDelete)        {
-            PendingTransactions.Remove(transaction);
-            transactionsToInclude.Remove(transaction);
-            Console.WriteLine($"Transaction {transaction.Id} removed from mempool due to inactivity.");
-        }
+        EvictStaleTransactions(livenessSeconds);
+        var transactionsToInclude = PendingTransactions
+            .OrderByDescending(tx => tx.Fee - baseFee)
+            .ThenBy(tx => tx.Timestamp)
+            .Take(maxTransactionPerBlock)
+            .ToList();
 
         
 
@@ -181,13 +192,26 @@ public class BlockChainService
         return balance;
     }
     
-    public void RebuildState()
+    
+    public bool ValidateAndRebuildState()
     {
         BalanceCash.Clear();
         foreach (var block in Chain)
         {
-            UpdateBalance(block);
+            try
+            {
+                UpdateBalance(block);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+               return false;
+            }
+
+            
         }
+        return true;
+        
     }
     public decimal GetBalance(string address)
     {
@@ -203,6 +227,16 @@ public class BlockChainService
     {
         foreach (var tx in block.Transactions)
         {
+            try
+            {
+                TransactionService.ValidateTransaction(tx);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+            
             if (tx.From != "COINBASE")
             {
                 if (!BalanceCash.ContainsKey(tx.From))

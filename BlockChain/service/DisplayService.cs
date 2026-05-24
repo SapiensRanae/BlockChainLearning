@@ -4,6 +4,11 @@ namespace BlockChain.service;
 
 public class DisplayService
 {
+    public void PrintChain(List<Block> chain)
+    {
+        DisplayChain(chain);
+    }
+
     public void DisplayChain(List<Block> chain)
     {
         foreach (var block in chain)

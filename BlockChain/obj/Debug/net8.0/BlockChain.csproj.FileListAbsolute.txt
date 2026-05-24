@@ -13,3 +13,7 @@
 /home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.genruntimeconfig.cache
 /home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/ref/BlockChain.dll
 /home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.sourcelink.json
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/Microsoft.Extensions.DependencyInjection.dll
+/home/ranae/RiderProjects/BlockChain/BlockChain/bin/Debug/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.csproj.AssemblyReference.cache
+/home/ranae/RiderProjects/BlockChain/BlockChain/obj/Debug/net8.0/BlockChain.csproj.Up2Date

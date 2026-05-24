@@ -8,8 +8,12 @@ public class BlockChainService
     private readonly HashingService _hashingService;
     private readonly MiningService _miningService;
     private int _halvingCounter = 5;
+    public List<Transaction> PendingTransactions;
+    public const int maxTransactionPerBlock = 10;
+    public const decimal baseFee = 0.1m;
     public int Difficulty;
     public int Reward = 100;
+    private readonly int livenessSeconds = 60;
     private const double TargetBlockTimeDuration = 1;
     private const int DifficultyAdjustmentInterval = 1;
     
@@ -21,6 +25,7 @@ public class BlockChainService
         _hashingService = new HashingService();
         _miningService = new MiningService(_hashingService);
         Difficulty = difficulty;
+        PendingTransactions = new List<Transaction>();
         CreateGenesisBlock();
     }
 
@@ -40,6 +45,39 @@ public class BlockChainService
             Console.WriteLine($"Block #{block.Index}: Difficulty at Mining = {block.DifficultyAtMining}");
         }
     }
+    
+    public void AddTransactionToMemPool(Transaction transaction)
+    {
+        var transactionCount = 0;
+        
+        var isValid = TransactionService.ValidateTransaction(transaction);
+
+        if (!isValid.isValid)
+        {
+            throw new Exception($"Transaction {transaction.Id} is invalid: {isValid}");
+        }
+        if (transaction.From != "COINBASE")
+        {
+            var balance = GetBalance(transaction.From);
+            // if (balance < transaction.Amount + transaction.Fee)
+            // {
+            //     throw new Exception($"Wallet {transaction.From} has insufficient balance for this transaction.");
+            // }
+            if (transaction.Fee < baseFee)
+            {
+                throw new Exception($"Transaction {transaction.Id} has insufficient fee. Minimum fee is {baseFee}.");
+            }
+        }
+        
+        transactionCount = PendingTransactions.Count(tx => tx.From == transaction.From);
+
+        if (transactionCount > 3)
+        {
+            throw new Exception($"Wallet {transaction.From} has too many pending transactions in the mempool.");
+        }
+        
+        PendingTransactions.Add(transaction);
+    }
 
     private void UpdateReward(Block block)
     {
@@ -51,29 +89,44 @@ public class BlockChainService
         }
     }
 
-    public void MineBlock(string minerAdress, List<Transaction> transactions)
+    public void MinePendingTransactions(string minerAdress)
     {
-        foreach (var tx in transactions)
-        {
-            var isValid = TransactionService.ValidateTransaction(tx, this);
-            if (!isValid.isValid)
-            {
-                throw new Exception($"Invalid transaction: {isValid.error}");
-            }
+        var transactionsToInclude = PendingTransactions.OrderByDescending(tx => tx.Fee - baseFee).ThenBy(tx => tx.Timestamp).Take(maxTransactionPerBlock).ToList();
+        var transactionsToDelete = transactionsToInclude.Where(tx => tx.Timestamp < DateTime.UtcNow.AddSeconds(-livenessSeconds)).ToList();
+        
+        foreach (var transaction in transactionsToDelete)        {
+            PendingTransactions.Remove(transaction);
+            transactionsToInclude.Remove(transaction);
+            Console.WriteLine($"Transaction {transaction.Id} removed from mempool due to inactivity.");
         }
 
-        var rewardTx = new Transaction("COINBASE", minerAdress, Reward);
-        transactions.Add(rewardTx);
+        
+
+        var totalTips = transactionsToInclude.Sum(tx => tx.Fee - baseFee);
+        var totalReward = Reward + totalTips;
+        
+        
+        var rewardingTransactions = new Transaction("COINBASE", minerAdress, totalReward, 0);
+        
+        transactionsToInclude.Insert(0,rewardingTransactions);
+        
         var lastBlock = Chain.Last();
-        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty, transactions);
-        _miningService.Mine(newBlock, newBlock.DifficultyAtMining);
+        var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty, transactionsToInclude);
+        _miningService.Mine(newBlock, Difficulty);
         Chain.Add(newBlock);
         UpdateBalance(newBlock);
         UpdateReward(newBlock);
-        if (newBlock.Index % DifficultyAdjustmentInterval == 0)
+        
+        foreach (var transaction in transactionsToInclude)
+        {
+            PendingTransactions.Remove(transaction);
+        }
+        
+        if (Chain.Count % DifficultyAdjustmentInterval == 0)
         {
             AdjustDifficulty();
         }
+        
     }
 
     private void AdjustDifficulty()
@@ -154,14 +207,14 @@ public class BlockChainService
                 {
                     BalanceCash[tx.From] = 0;
                 }
-                BalanceCash[tx.From] -= tx.Amount;
+                BalanceCash[tx.From] -= tx.Amount + tx.Fee;
             }
 
             if (!BalanceCash.ContainsKey(tx.To))
             {
                 BalanceCash[tx.To] = 0;
             }
-            BalanceCash[tx.To] += tx.Amount;
+            BalanceCash[tx.To] += tx.Amount + tx.Fee;
         }
     }
 
@@ -209,5 +262,22 @@ public class BlockChainService
     public bool IsValid()
     {
         return AnalyzeChain().Count == 0;
+        
+    }
+
+    public decimal GetTotalSupply()
+    {
+        return Chain.Sum(block => block.Transactions.Sum(tx => tx.Amount));
+    }
+    public decimal GetTotalBurned()
+    {
+        return Chain
+            .SelectMany(block => block.Transactions)
+            .Count(tx => tx.From != "COINBASE") * baseFee;
+    }
+    
+    public decimal GetActualTotalCoins()
+    {
+        return GetTotalSupply() - GetTotalBurned();
     }
 }

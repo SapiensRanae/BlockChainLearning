@@ -1,8 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "DgdCmAhzEyc=",
+  "dgSpecHash": "Eb0OC4h9HM4=",
   "success": true,
   "projectFilePath": "/home/ranae/RiderProjects/BlockChain/BlockChain/BlockChain.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "/home/ranae/.nuget/packages/microsoft.extensions.dependencyinjection/11.0.0-preview.4.26230.115/microsoft.extensions.dependencyinjection.11.0.0-preview.4.26230.115.nupkg.sha512",
+    "/home/ranae/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/11.0.0-preview.4.26230.115/microsoft.extensions.dependencyinjection.abstractions.11.0.0-preview.4.26230.115.nupkg.sha512"
+  ],
   "logs": []
 }

@@ -1,4 +1,5 @@
 using BlockChain.models;
+using BlockChain.service;
 
 namespace BlockChain.models
 {
@@ -9,28 +10,31 @@ namespace BlockChain.models
         public string From { get; set; }
         public string To { get; set; }
         public decimal Amount { get; set; }
+        public decimal Fee { get; set; }
 
         public DateTime Timestamp { get; set; }
         
         public byte[] Signature { get; set; }
 
-        public Transaction(string from, string to, decimal amount)
+        public Transaction(string from, string to, decimal amount, decimal fee = 0.01m)
         {
             Id = Guid.NewGuid().ToString();
             From = from;
             To = to;
             Amount = amount;
             Timestamp = DateTime.UtcNow;
+            Fee = fee;
+            
         }
 
         public string ToRawString()
         {
-            return $"{Id}|{From}|{To}|{Amount}|{Timestamp}";
+            return $"{Id}|{From}|{To}|{Amount}|{Timestamp}|{Fee}";
         }
 
         public override string ToString()
         {
-            return $"Transaction ID: {Id} From: {From} To: {To} Amount: {Amount} Timestamp: {Timestamp} Signature: {Signature}";
+            return $"Transaction ID: {Id} From: {From} To: {To} Amount: {Amount} Timestamp: {Timestamp} Signature: {Signature} Fee: {Fee}";
         }
 
 
@@ -51,11 +55,11 @@ namespace BlockChain.service
                 _blockChainService = blockChainService;
             }
 
-            public Transaction CreateTransaction(string from, string to, decimal amount, string privateKey)
+            public static Transaction CreateTransaction(string from, string to, decimal amount, decimal fee, string privateKey)
             {
-                var tx = new Transaction(from, to, amount);
+                var tx = new Transaction(from, to, amount, fee);
                 SignTransaction(tx, privateKey);
-                var validation = ValidateTransaction(tx, _blockChainService);
+                var validation = ValidateTransaction(tx);
                 if (!validation.isValid)
                 {
                     throw new Exception($"Invalid transaction: {validation.error}");
@@ -66,7 +70,7 @@ namespace BlockChain.service
                 }
             }
 
-            public static (bool isValid, string error) ValidateTransaction(Transaction tx, BlockChainService blockChainService )
+            public static (bool isValid, string error) ValidateTransaction(Transaction tx)
             {
                 if (tx == null) return (false, "Transaction is null");
                 if (string.IsNullOrEmpty(tx.From)) return (false, "From address is required");
@@ -75,7 +79,9 @@ namespace BlockChain.service
                 if (!CryptoService.VerifySignature( tx.ToRawString(), tx.Signature, tx.From)) return (false, "Invalid signature");
                 if (tx.Timestamp < DateTime.UtcNow.AddMinutes(-1)) return (false, "Transaction is too old");
                 if (tx.Timestamp > DateTime.UtcNow.AddMinutes(1)) return (false, "Transaction is too recent");
-                if (blockChainService.GetBalance(tx.From) < tx.Amount) return (false, "Insufficient balance");
+               //moved to mempool if (blockChainService.GetBalance(tx.From) < tx.Amount+tx.Fee) return (false, "Insufficient balance");
+                if (tx.From == tx.To) return (false, "Transaction cannot send to itself");
+                
                 return (true, null);
             }
 

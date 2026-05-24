@@ -1,4 +1,6 @@
 using BlockChain.models;
+using System.Text.Json;
+using System.IO;
 
 namespace BlockChain.service;
 
@@ -220,13 +222,13 @@ public class BlockChainService
 
 
     
-    public List<string> AnalyzeChain()
+    public List<string> AnalyzeChain(List<Block> chain)
     {
         var issues = new List<string>();
 
-        for (int i = 0; i < Chain.Count; i++)
+        for (int i = 0; i < chain.Count; i++)
         {
-            var currentBlock = Chain[i];
+            var currentBlock = chain[i];
             var recalculatedHash = _hashingService.ComputeHash(currentBlock);
 
             if (currentBlock.Hash != recalculatedHash)
@@ -241,7 +243,7 @@ public class BlockChainService
 
             if (i > 0)
             {
-                var previousBlock = Chain[i - 1];
+                var previousBlock = chain[i - 1];
                 if (currentBlock.PreviousHash != previousBlock.Hash)
                 {
                     issues.Add($"Error in block #[{currentBlock.Index}]: Chain broken (PreviousHash does not match previous block hash).");
@@ -250,6 +252,30 @@ public class BlockChainService
         }
 
         return issues;
+    }
+
+    public void ReplaceChain(List<Block> newChain)
+    {
+        if (newChain.Count <= Chain.Count) return;
+        var issues = AnalyzeChain(newChain);
+        
+        if(newChain.Sum(block => block.DifficultyAtMining) <= Chain.Sum(block => block.DifficultyAtMining))
+        {
+            issues.Add("The new chain does not have more cumulative difficulty than the current chain.");
+        }
+        if (issues.Count > 0)
+        {
+            throw new Exception("The new chain is invalid: " + string.Join(", ", issues));
+        }
+        Chain = newChain;
+        BalanceCash.Clear();
+        foreach (var block in Chain)
+        {
+            UpdateBalance(block);
+        }
+
+        var mixedTxId = Chain.SelectMany(block => block.Transactions).Select(tx => tx.Id).ToHashSet();
+        
     }
 
     private bool IsHashMeetingDifficulty(string hash, int difficulty)
@@ -261,7 +287,7 @@ public class BlockChainService
 
     public bool IsValid()
     {
-        return AnalyzeChain().Count == 0;
+        return AnalyzeChain(Chain).Count == 0;
         
     }
 
@@ -280,4 +306,81 @@ public class BlockChainService
     {
         return GetTotalSupply() - GetTotalBurned();
     }
+
+    public void SaveStateSnapshot(string filePath = "savestate.json")
+    {
+        try
+        {
+            var state = new
+            {
+                Timestamp = DateTime.UtcNow,
+                ChainLength = Chain.Count,
+                Balances = BalanceCash,
+                TotalSupply = GetTotalSupply(),
+                TotalBurned = GetTotalBurned(),
+                ActualTotalCoins = GetActualTotalCoins()
+            };
+
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true
+            };
+
+            var json = JsonSerializer.Serialize(state, options);
+            File.WriteAllText(filePath, json);
+            Console.WriteLine($"Saved state snapshot to '{filePath}'");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to save state snapshot: {ex.Message}");
+        }
+    }
+    
+
+    public bool LoadStateSnapshot(string filePath = "savestate.json")
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                Console.WriteLine($"State snapshot file not found: {filePath}");
+                return false;
+            }
+
+            var json = File.ReadAllText(filePath);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            var snapshot = JsonSerializer.Deserialize<StateSnapshot>(json, options);
+            if (snapshot == null)
+            {
+                Console.WriteLine("Failed to parse state snapshot (null).");
+                return false;
+            }
+
+            BalanceCash.Clear();
+            if (snapshot.Balances != null)
+            {
+                foreach (var kv in snapshot.Balances)
+                {
+                    BalanceCash[kv.Key] = kv.Value;
+                }
+            }
+
+            Console.WriteLine($"Loaded state snapshot from '{filePath}'. Balances restored: {BalanceCash.Count} entries.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load state snapshot: {ex.Message}");
+            return false;
+        }
+    }
+
+  
+    private record StateSnapshot(DateTime Timestamp, int ChainLength, Dictionary<string, decimal>? Balances,
+        decimal TotalSupply, decimal TotalBurned, decimal ActualTotalCoins);
+
 }

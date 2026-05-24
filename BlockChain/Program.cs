@@ -47,6 +47,7 @@ while (true)
     Console.WriteLine("5. connect");
     Console.WriteLine("6. show mempool");
     Console.WriteLine("7. show balance");
+    Console.WriteLine("8. save state (balances -> JSON)");
     Console.WriteLine("0. exit");
     Console.Write("Enter command: ");
     
@@ -127,6 +128,10 @@ while (true)
             break;
         case "7":
             Console.WriteLine("Balance: " + blockchainService.GetBalance(myWallet.publicKey));
+            break;
+        case "8":
+            // Save state (balances and some metadata) to JSON file in current directory
+            blockchainService.SaveStateSnapshot();
             break;
         case "0":
             Console.WriteLine("Goodbye!");

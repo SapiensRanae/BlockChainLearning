@@ -2,12 +2,13 @@
 using System.Diagnostics;
 using BlockChain.models;
 using BlockChain.service;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
 
 var service = new ServiceCollection();
-service.AddTransient<BlockChain.service.BlockChainService>();
-service.AddSingleton<BlockChain.service.P2PServer, BlockChain.service.P2PServer>();
+service.AddSingleton<BlockChain.service.BlockChainService>();
+service.AddSingleton<BlockChain.service.P2P.P2PServer, BlockChain.service.P2P.P2PServer>();
 service.AddSingleton<BlockChain.service.P2PClient, BlockChain.service.P2PClient>();
 service.AddSingleton<BlockChain.service.DisplayService>();
 service.AddSingleton<BlockChain.service.BlockchainExplorer>();
@@ -19,7 +20,7 @@ var provider = service.BuildServiceProvider();
 var blockchainService = provider.GetRequiredService<BlockChain.service.BlockChainService>();
 var blockchainService2 = provider.GetRequiredService<BlockChain.service.BlockChainService>();
 
-var p2pServer = provider.GetRequiredService<BlockChain.service.P2PServer>();
+var p2pServer = provider.GetRequiredService<BlockChain.service.P2P.P2PServer>();
 var p2pClient = provider.GetRequiredService<BlockChain.service.P2PClient>();
 var displayService = provider.GetRequiredService<BlockChain.service.DisplayService>();
 
@@ -43,7 +44,7 @@ void SimulateNewCain()
 {
 
     var secondWallet = new Wallet(cryptoService);
-    
+
 
     blockchainService2.MinePendingTransactions(secondWallet.publicKey);
     blockchainService2.MinePendingTransactions(secondWallet.publicKey);
@@ -57,6 +58,31 @@ void SimulateNewCain()
 
     Console.WriteLine("Simulating new chain with one additional block...");
     blockchainService.ReplaceChain(newChain);
+
+    try
+    {
+        p2pClient.BrodcastChainAsync(blockchainService.Chain).Wait();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Failed to broadcast chain: {ex.Message}");
+    }
+}
+
+void TestReport()
+{
+   
+    var bcs = new BlockChain.service.BlockChainService();
+    var testerWallet = new Wallet(cryptoService);
+
+    for (int i = 0; i < 5; i++) bcs.MinePendingTransactions(testerWallet.publicKey);
+
+    var b = bcs.Chain.FirstOrDefault(x => x.Index == 2);
+   b.MerkleRoot = "HACKED";
+    
+   var audit = bcs.RunFullAudit(bcs.Chain);
+   
+    Console.WriteLine(bcs.GenerateForensicReport(audit, bcs.FindAttackOrigin(audit, bcs.Chain)));
 }
 
 void Benchmark(){
@@ -67,7 +93,7 @@ void Benchmark(){
     {
         blockchainService.MinePendingTransactions(walletAlice.publicKey);
     }
-    
+
     var stopwatch = Stopwatch.StartNew();
     blockchainService.GetBalanceOld(walletAlice.publicKey);
     stopwatch.Stop();
@@ -80,6 +106,7 @@ void Benchmark(){
 
 while (true)
 {
+   
     Console.WriteLine("\n=== Blockchain Menu ===");
     Console.WriteLine("1. mine");
     Console.WriteLine("2. send");
@@ -91,6 +118,7 @@ while (true)
     Console.WriteLine("8. save state (balances -> JSON)");
     Console.WriteLine("9. simulate new chain");
     Console.WriteLine("10. benchmark");
+    Console.WriteLine("11. test report");
     Console.WriteLine("0. exit");
     Console.Write("Enter command: ");
     
@@ -101,6 +129,7 @@ while (true)
         
         case "1":
             blockchainService.MinePendingTransactions(myWallet.publicKey);
+            p2pClient.BrodcastChainAsync(blockchainService.Chain).Wait();
             break;
         case "2":
             Console.Write("Enter recipient address: ");
@@ -159,7 +188,18 @@ while (true)
             var peerAddress = Console.ReadLine();
             if (!string.IsNullOrEmpty(peerAddress))
             {
-                p2pClient.ConnectToPeer(peerAddress);
+                        p2pClient.ConnectToPeer(peerAddress);
+            }
+            var parts = peerAddress.Split(':');
+            var resp = p2pClient.RequestChainAsync(parts[0], int.Parse(parts[1]), $"127.0.0.1:{port}").Result;
+            if (resp != null && resp.Type == "NEW_CHAIN")
+            {
+                var newChain = JsonSerializer.Deserialize<List<Block>>(resp.Data);
+                if (newChain != null)
+                {
+                    blockchainService.ReplaceChain(newChain);
+                    Console.WriteLine("Replaced local chain with peer chain.");
+                }
             }
             break;
         case "6":
@@ -181,6 +221,9 @@ while (true)
             break;
         case "10":
             Benchmark();
+            break;
+        case "11":
+            TestReport();
             break;
         case "0":
             Console.WriteLine("Goodbye!");

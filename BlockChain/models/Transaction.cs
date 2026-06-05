@@ -14,9 +14,12 @@ namespace BlockChain.models
 
         public DateTime Timestamp { get; set; }
         
+        public int minBlockHeight { get; set; }
+
+        
         public byte[] Signature { get; set; }
 
-        public Transaction(string from, string to, decimal amount, decimal fee = 0.01m)
+        public Transaction(string from, string to, decimal amount, decimal fee = 0.01m, int minBlockHeight = 0)
         {
             Id = Guid.NewGuid().ToString();
             From = from;
@@ -24,6 +27,7 @@ namespace BlockChain.models
             Amount = amount;
             Timestamp = DateTime.UtcNow;
             Fee = fee;
+            this.minBlockHeight = minBlockHeight;
             
         }
 

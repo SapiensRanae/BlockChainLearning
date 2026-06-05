@@ -1,6 +1,7 @@
+using System.Text;
 using BlockChain.models;
 using System.Text.Json;
-using System.IO;
+
 
 namespace BlockChain.service;
 
@@ -9,27 +10,34 @@ public class BlockChainService
     public List<Block> Chain { get; set; }
     private readonly HashingService _hashingService;
     private readonly MiningService _miningService;
+    private readonly StorageService _storageService;
     private int _halvingCounter = 5;
     public List<Transaction> PendingTransactions;
-    public const int maxTransactionPerBlock = 10;
-    public const decimal baseFee = 0.1m;
+    public const int MaxTransactionPerBlock = 10;
+    public const decimal BaseFee = 0.1m;
     public int Difficulty;
     public int Reward = 100;
-    private readonly int livenessSeconds = 60;
+    private readonly int _livenessSeconds = 60;
     private const double TargetBlockTimeDuration = 1;
     private const int DifficultyAdjustmentInterval = 1;
-    private Dictionary<string, decimal> BalanceCashOld = new Dictionary<string, decimal>();
+    private Dictionary<string, decimal> _balanceCashOld = new Dictionary<string, decimal>();
     
     public Dictionary<string, decimal> BalanceCash = new Dictionary<string, decimal>();
 
-    public BlockChainService(int difficulty = 1)
+    public BlockChainService(int difficulty = 1 )
     {
         Chain = new List<Block>();
         _hashingService = new HashingService();
         _miningService = new MiningService(_hashingService);
+        _storageService = new StorageService();
         Difficulty = difficulty;
         PendingTransactions = new List<Transaction>();
         CreateGenesisBlock();
+        var loadedChain = _storageService.LoadBlockChain();
+        if (loadedChain.Count > 0 && loadedChain.Count > 0)
+        {
+            Chain = loadedChain;
+        }
     }
 
     private void CreateGenesisBlock()
@@ -66,9 +74,9 @@ public class BlockChainService
             {
                 throw new Exception($"Wallet {transaction.From} has insufficient balance for this transaction.");
             }
-            if (transaction.Fee < baseFee)
+            if (transaction.Fee < BaseFee)
             {
-                throw new Exception($"Transaction {transaction.Id} has insufficient fee. Minimum fee is {baseFee}.");
+                throw new Exception($"Transaction {transaction.Id} has insufficient fee. Minimum fee is {BaseFee}.");
             }
         }
         
@@ -107,16 +115,17 @@ public class BlockChainService
 
     public void MinePendingTransactions(string minerAdress)
     {
-        EvictStaleTransactions(livenessSeconds);
+        EvictStaleTransactions(_livenessSeconds);
         var transactionsToInclude = PendingTransactions
-            .OrderByDescending(tx => tx.Fee - baseFee)
+            .Where(tx => tx.minBlockHeight <= Chain.Count)
+            .OrderByDescending(tx => tx.Fee - BaseFee)
             .ThenBy(tx => tx.Timestamp)
-            .Take(maxTransactionPerBlock)
+            .Take(MaxTransactionPerBlock)
             .ToList();
 
         
 
-        var totalTips = transactionsToInclude.Sum(tx => tx.Fee - baseFee);
+        var totalTips = transactionsToInclude.Sum(tx => tx.Fee - BaseFee);
         var totalReward = Reward + totalTips;
         
         
@@ -126,6 +135,7 @@ public class BlockChainService
         
         var lastBlock = Chain.Last();
         var newBlock = new Block(lastBlock.Index + 1, DateTime.UtcNow, lastBlock.Hash, Difficulty, transactionsToInclude);
+        newBlock.MerkleRoot = _hashingService.BuildMerkleTree(transactionsToInclude);
         _miningService.Mine(newBlock, Difficulty);
         Chain.Add(newBlock);
         UpdateBalance(newBlock);
@@ -140,6 +150,9 @@ public class BlockChainService
         {
             AdjustDifficulty();
         }
+        
+        _storageService.SaveBlockChain(Chain);
+        
         
     }
 
@@ -264,6 +277,7 @@ public class BlockChainService
         for (int i = 0; i < chain.Count; i++)
         {
             var currentBlock = chain[i];
+            var prevBlock = i > 0 ? chain[i - 1] : null;
             var recalculatedHash = _hashingService.ComputeHash(currentBlock);
 
             if (currentBlock.Hash != recalculatedHash)
@@ -275,6 +289,11 @@ public class BlockChainService
             {
                 issues.Add($"Error in block #[{currentBlock.Index}]: Hash does not satisfy current difficulty.");
             }
+            if (currentBlock.PreviousHash != prevBlock?.Hash)
+            {
+                issues.Add($"Error in block #[{currentBlock.Index}]: PreviousHash does not match hash of previous block.");
+            }
+            
 
             if (i > 0)
             {
@@ -284,6 +303,18 @@ public class BlockChainService
                     issues.Add($"Error in block #[{currentBlock.Index}]: Chain broken (PreviousHash does not match previous block hash).");
                 }
             }
+
+            foreach (var tx in currentBlock.Transactions)
+            {
+                if (tx.From == "COINBASE")
+                {
+                    continue;
+                }
+                var validation = TransactionService.ValidateTransaction(tx);
+                if(!validation.isValid)                {
+                    issues.Add($"Error in block #[{currentBlock.Index}]: Invalid transaction {tx.Id} - {validation.error}");
+                }
+            }
         }
 
         return issues;
@@ -291,65 +322,34 @@ public class BlockChainService
 
     public void ReplaceChain(List<Block> newChain)
     {
-        if (newChain.Count <= Chain.Count)
-        {
-            Console.WriteLine($"The new chain{newChain.Count} is not longer than the current chain{Chain.Count}. Ignoring...");
-            return;
-        };
-        var issues = AnalyzeChain(newChain);
         
-        if(newChain.Sum(block => block.DifficultyAtMining) <= Chain.Sum(block => block.DifficultyAtMining))
-        {
-            issues.Add("The new chain does not have more cumulative difficulty than the current chain.");
-        }
-        if (issues.Count > 0)
-        {
-            throw new Exception("The new chain is invalid: " + string.Join(", ", issues));
-        }
-        Console.BackgroundColor = ConsoleColor.Yellow;
-        Console.ForegroundColor = ConsoleColor.Black;
-        Console.WriteLine($"Our node is old. We were in the past for{newChain.Count - Chain.Count} blocks. Replacing chain...");
-        Console.ResetColor();
-
-        foreach (var block in Chain)
-        {
-            if (!newChain.Contains(block))
-                    {
-                        foreach (var tx in block.Transactions)
-                        {
-                            if (tx.From != "COINBASE")
-                            {
-                                Console.BackgroundColor = ConsoleColor.Red;
-                                Console.WriteLine($"Removing tx {tx.Id} from our chain");
-                                Console.ResetColor();
-                                
-                            }
-                         
-                        }
-                    }
-            
-        }
-        
-        Chain = newChain;
-        BalanceCashOld = new Dictionary<string, decimal>(BalanceCash);
-        BalanceCash.Clear();
+      if (newChain.Count < Chain.Count) return;
+     // if (AnalyzeChain(newChain).Count > 0) return;
+      
+      Chain = newChain;
+      
+      BalanceCash.Clear();
         foreach (var block in Chain)
         {
             UpdateBalance(block);
         }
-        DiffOldNewBalaneces();
-
-        var mixedTxId = Chain.SelectMany(block => block.Transactions).Select(tx => tx.Id).ToHashSet();
-        PendingTransactions.RemoveAll(tx => mixedTxId.Contains(tx.Id));
-        Console.BackgroundColor = ConsoleColor.Green;
-        Console.WriteLine("Chain replaced.");
-        Console.ResetColor();
+        
+        var minedTxId = Chain.SelectMany(tx => tx.Transactions).Select(tx => tx.Id).ToHashSet();
+        var pendingTxId = PendingTransactions.Select(tx => tx.Id).ToHashSet();
+        
+        var txIdsToRemove = pendingTxId.Except(minedTxId).ToList();
+        foreach (var txId in txIdsToRemove)
+        {
+            PendingTransactions.RemoveAll(tx => tx.Id == txId);
+        }
+        
+        _storageService.SaveBlockChain(Chain);
         
     }
 
     private void DiffOldNewBalaneces()
     {
-        foreach (var kv in BalanceCashOld)        {
+        foreach (var kv in _balanceCashOld)        {
             var oldBalance = kv.Value;
             var newBalance = BalanceCash.ContainsKey(kv.Key) ? BalanceCash[kv.Key] : 0;
             if (oldBalance != newBalance)
@@ -384,12 +384,123 @@ public class BlockChainService
     {
         return Chain
             .SelectMany(block => block.Transactions)
-            .Count(tx => tx.From != "COINBASE") * baseFee;
+            .Count(tx => tx.From != "COINBASE") * BaseFee;
     }
     
     public decimal GetActualTotalCoins()
     {
         return GetTotalSupply() - GetTotalBurned();
+    }
+
+    public AuditReport RunFullAudit(List<Block> chain)
+    {
+        var report = new AuditReport();
+        for (int i = 0; i < chain.Count; i++)
+        {
+            if (i > 0)
+            {
+                var previousBlock = chain[i - 1];
+                var currentBlock = chain[i];
+                if (currentBlock.PreviousHash != previousBlock.Hash)
+                {
+                    report.IsChainValid = false;
+                    report.CompromisedBlockIndexes.Add(currentBlock.Index);
+                    report.ViolationDetails[currentBlock.Index] = new List<string>
+                    {
+                        $"Chain broken: PreviousHash does not match previous block hash."
+                    };
+                }
+            }
+
+            if (chain[i].MerkleRoot != _hashingService.BuildMerkleTree(chain[i].Transactions))
+            {
+                report.IsChainValid = false;
+                report.CompromisedBlockIndexes.Add(chain[i].Index);
+                if (!report.ViolationDetails.ContainsKey(chain[i].Index))
+                {
+                    report.ViolationDetails[chain[i].Index] = new List<string>();
+                }
+
+                report.ViolationDetails[chain[i].Index].Add("Merkle root does not match transactions.");
+            }
+            
+            if (!IsHashMeetingDifficulty(chain[i].Hash, chain[i].DifficultyAtMining))
+            {
+                report.IsChainValid = false;
+                report.CompromisedBlockIndexes.Add(chain[i].Index);
+                if (!report.ViolationDetails.ContainsKey(chain[i].Index))
+                {
+                    report.ViolationDetails[chain[i].Index] = new List<string>();
+                }
+
+                report.ViolationDetails[chain[i].Index].Add(
+                    $"Block hash does not satisfy difficulty {chain[i].DifficultyAtMining}."
+                );
+            }
+        }
+        return report;
+    }
+
+    public Block? FindAttackOrigin(AuditReport report, List<Block> chain)
+    {
+      
+        if (report == null || report.CompromisedBlockIndexes == null || report.CompromisedBlockIndexes.Count == 0)
+            return null;
+
+        var compromisedOrdered = report.CompromisedBlockIndexes.Distinct().OrderBy(i => i);
+
+       
+        foreach (var idx in compromisedOrdered)
+        {
+            var block = chain.FirstOrDefault(b => b.Index == idx);
+            if (block == null) continue;
+
+            if (report.ViolationDetails.TryGetValue(idx, out var violations) && violations.Any(v =>
+                    !v.Contains("PreviousHash", StringComparison.OrdinalIgnoreCase) &&
+                    !v.Contains("Chain broken", StringComparison.OrdinalIgnoreCase)))
+            {
+                return block;
+            }
+        }
+        
+        foreach (var idx in compromisedOrdered)
+        {
+            var blk = chain.FirstOrDefault(b => b.Index == idx);
+            if (blk != null) return blk;
+        }
+
+        return null;
+    }
+
+    public string GenerateForensicReport(AuditReport report, Block attacOrigin)
+    {
+        var output = new StringBuilder();
+        output.AppendLine("=== FORENSIC AUDIT REPORT ===");
+        if (report.IsChainValid)
+        {
+            output.AppendLine("Chain status: OK");
+            output.AppendLine("No compromised blocks detected.");
+        }
+        else
+        {
+            output.AppendLine("Chain status: COMPROMISED");
+            output.AppendLine($"Attack Origin: Block #{attacOrigin.Index} (Timestamp: {attacOrigin.Timestamp})");
+            output.AppendLine($"Total Compromised Blocks: {report.CompromisedBlockIndexes.Count}");
+            foreach (var blockIndex in report.CompromisedBlockIndexes)
+            {
+                output.AppendLine($"- Block #{blockIndex}:");
+                if (report.ViolationDetails.TryGetValue(blockIndex, out var violations))
+                {
+                    foreach (var violation in violations)
+                    {
+                        output.AppendLine($"  - {violation}");
+                    }
+                }
+            }
+
+           
+        }
+        return output.ToString();
     }
 
     public void SaveStateSnapshot(string filePath = "savestate.json")

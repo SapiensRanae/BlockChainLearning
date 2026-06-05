@@ -8,6 +8,7 @@ namespace BlockChain.service;
 public class P2PClient
 {
     private readonly List<string> _peers = new List<string>(); // peerAddress -> lastSeen
+    private List<string> _peersToRemove = new List<string>(); 
     // cache recent chain broadcasts (signature -> timestamp) to avoid ping-pong
     private readonly Dictionary<string, DateTime> _recentChainBroadcasts = new Dictionary<string, DateTime>();
     public void ConnectToPeer(string peerAddress)
@@ -44,6 +45,16 @@ public class P2PClient
         catch (Exception e)
         {
             Console.WriteLine(e.Message);
+            _peersToRemove.AddRange(_peers); 
+        }
+        if (_peersToRemove.Count > 0)
+        {
+            foreach (var peer in _peersToRemove)
+            {
+                _peers.Remove(peer);
+                Console.WriteLine($"Removed unreachable peer: {peer}");
+            }
+            _peersToRemove.Clear();
         }
     }
 
@@ -120,6 +131,16 @@ public class P2PClient
         catch (Exception e)
         {
             Console.WriteLine(e.Message);
+            _peersToRemove.AddRange(_peers);
+        }
+        if (_peersToRemove.Count > 0)
+        {
+            foreach (var peer in _peersToRemove)
+            {
+                _peers.Remove(peer);
+                Console.WriteLine($"Removed unreachable peer: {peer}");
+            }
+            _peersToRemove.Clear();
         }
     }
     public void DisconnectFromPeer(string peerAddress)

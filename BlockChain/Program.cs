@@ -8,16 +8,23 @@ using Microsoft.Extensions.DependencyInjection;
 
 var service = new ServiceCollection();
 service.AddSingleton<BlockChain.service.BlockChainService>();
+
 service.AddSingleton<BlockChain.service.P2P.P2PServer, BlockChain.service.P2P.P2PServer>();
 service.AddSingleton<BlockChain.service.P2PClient, BlockChain.service.P2PClient>();
 service.AddSingleton<BlockChain.service.DisplayService>();
-service.AddSingleton<BlockChain.service.BlockchainExplorer>();
+service.AddSingleton<BlockChain.service.BlockchainExplorer>(sp => 
+    new BlockChain.service.BlockchainExplorer(
+        sp.GetRequiredService<BlockChain.service.BlockChainService>(),
+        sp.GetRequiredService<BlockChain.service.BlockChainService>().Chain
+    )
+);
 service.AddSingleton<BlockChain.service.CryptoService, BlockChain.service.CryptoService>();
 
 
 var provider = service.BuildServiceProvider();
 
 var blockchainService = provider.GetRequiredService<BlockChain.service.BlockChainService>();
+var explorer = provider.GetRequiredService<BlockChain.service.BlockchainExplorer>();
 var blockchainService2 = provider.GetRequiredService<BlockChain.service.BlockChainService>();
 
 var p2pServer = provider.GetRequiredService<BlockChain.service.P2P.P2PServer>();
@@ -79,9 +86,9 @@ void TestReport()
 
     var b = bcs.Chain.FirstOrDefault(x => x.Index == 2);
    b.MerkleRoot = "HACKED";
-    
+
    var audit = bcs.RunFullAudit(bcs.Chain);
-   
+
     Console.WriteLine(bcs.GenerateForensicReport(audit, bcs.FindAttackOrigin(audit, bcs.Chain)));
 }
 
@@ -119,6 +126,7 @@ while (true)
     Console.WriteLine("9. simulate new chain");
     Console.WriteLine("10. benchmark");
     Console.WriteLine("11. test report");
+    Console.WriteLine("12. find transaction by hash");
     Console.WriteLine("0. exit");
     Console.Write("Enter command: ");
     
@@ -224,6 +232,29 @@ while (true)
             break;
         case "11":
             TestReport();
+            break;
+        case "12":
+            Console.Write("Enter transaction hash: ");
+            var txHash = Console.ReadLine()?.Trim();
+            if (string.IsNullOrWhiteSpace(txHash))            {
+                Console.WriteLine("Transaction hash cannot be empty.");
+                break;
+            }
+            var txLocation = explorer.FindTransactionLocation(txHash);
+            if (txLocation.tx != null)
+            {
+                Console.WriteLine(txLocation.block is not null ? $"Transaction found in block index {txLocation.block.Index}:" : $"Transaction found in mempool:");
+                Console.WriteLine($"From: {txLocation.tx.From}");
+                Console.WriteLine($"To: {txLocation.tx.To}");
+                Console.WriteLine($"Amount: {txLocation.tx.Amount}");
+                Console.WriteLine($"Fee: {txLocation.tx.Fee}");
+                Console.WriteLine($"Timestamp: {txLocation.tx.Timestamp}");
+                
+            }
+            else
+            {
+                Console.WriteLine("Transaction not found in blockchain or mempool.");
+            }
             break;
         case "0":
             Console.WriteLine("Goodbye!");

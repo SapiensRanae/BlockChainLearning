@@ -2,8 +2,11 @@ using BlockChain.models;
 
 namespace BlockChain.service;
 
-public class BlockchainExplorer(List<Block> chain)
+public class BlockchainExplorer(BlockChainService blockChainService, List<Block> chain)
 {
+    private BlockChainService _blockChainService = blockChainService;
+    public List<Block> chain = chain;
+
     public decimal getTotalVolume()
     {
         return chain.Sum(block => block.Transactions.Sum(tx => tx.Amount));
@@ -51,7 +54,14 @@ public class BlockchainExplorer(List<Block> chain)
                 }
             }
         }
-        
+
+        foreach (var tx in blockChainService.PendingTransactions)
+        {
+            if (tx.Id == txId)
+            {
+                return (null, tx);
+            }
+        }
         
         return (null, null);
     }

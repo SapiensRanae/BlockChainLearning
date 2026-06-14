@@ -58,10 +58,11 @@ public class P2PServer
                 if (message.Type == "NEW_TRANSACTION")
                 {
                     var tx = JsonSerializer.Deserialize<Transaction>(message.Data);
-                    if (tx != null && !_blockchainService.PendingTransactions.Contains(tx))
+                    if (tx != null && !_blockchainService.PendingTransactions.Any(t => t.Id == tx.Id))
                     {
                         _blockchainService.AddTransactionToMemPool(tx);
                         Console.WriteLine($"Received new transaction {tx.Id}, propagating to peers.");
+                        _p2PClient.BroadcastTransactionAsync(tx).Wait();
                     }
                 }
 

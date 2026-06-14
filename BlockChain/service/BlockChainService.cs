@@ -63,6 +63,11 @@ public class BlockChainService
     
     public void AddTransactionToMemPool(Transaction transaction)
     {
+        if (PendingTransactions.Any(tx => tx.Id == transaction.Id))
+        {
+            return;
+        }
+
         var transactionCount = 0;
 
         var isValid = TransactionService.ValidateTransaction(transaction);

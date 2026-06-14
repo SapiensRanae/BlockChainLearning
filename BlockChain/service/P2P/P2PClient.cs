@@ -13,6 +13,8 @@ public class P2PClient
  
     private readonly Dictionary<string, DateTime> _recentChainBroadcasts = new Dictionary<string, DateTime>();
 
+    private readonly Dictionary<string, DateTime> _recentTransactions = new Dictionary<string, DateTime>();
+
     public P2PClient(BlockChainService blockChainService)
     {
         _blockChainService = blockChainService;
@@ -29,6 +31,12 @@ public class P2PClient
 
     public async Task BroadcastTransactionAsync(Transaction transaction)
     {
+        if (_recentTransactions.ContainsKey(transaction.Id) && (DateTime.UtcNow - _recentTransactions[transaction.Id]).TotalMinutes < 5)
+        {
+            return;
+        }
+        _recentTransactions[transaction.Id] = DateTime.UtcNow;
+
         var jsonTransaction = JsonSerializer.Serialize(transaction);
         var message = new NetworkMessage("NEW_TRANSACTION", jsonTransaction);
         jsonTransaction = JsonSerializer.Serialize(message);
@@ -175,14 +183,13 @@ public class P2PClient
             throw new Exception("Invalid transaction signature.");
         }
 
-        if (transaction.From != "COINBASE" && _blockChainService.GetBalance(transaction.From) < transaction.Amount + transaction.Fee)
+        if (transaction.From != "COINBASE" && transaction.From != "MINT" && _blockChainService.GetBalance(transaction.From) < transaction.Amount + transaction.Fee)
         {
             throw new Exception("Insufficient balance.");
         }
 
         _blockChainService.AddTransactionToMemPool(transaction);
-        var message = new NetworkMessage("NEW_TRANSACTION", JsonSerializer.Serialize(transaction));
-        BroadcastMessageAsync(message).GetAwaiter().GetResult();
+        BroadcastTransactionAsync(transaction).GetAwaiter().GetResult();
     }
     
     public void DisconnectFromPeer(string peerAddress)

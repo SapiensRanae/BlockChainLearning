@@ -5,6 +5,9 @@ using BlockChain.service;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
+
+Console.WriteLine("Enter port: ");
+
 var portInput = Console.ReadLine();
 if (!int.TryParse(portInput, out var port))
 {
@@ -38,8 +41,7 @@ service.AddSingleton<P2PClient>();
 service.AddSingleton<DisplayService>();
 service.AddSingleton<BlockchainExplorer>(sp =>
     new BlockchainExplorer(
-        sp.GetRequiredService<BlockChainService>(),
-        sp.GetRequiredService<BlockChainService>().Chain
+        sp.GetRequiredService<BlockChainService>()
     )
 );
 service.AddSingleton<CryptoService, CryptoService>();
@@ -60,11 +62,6 @@ var cryptoService = provider.GetRequiredService<CryptoService>();
 
 var myWallet = new Wallet(cryptoService);
 Console.WriteLine("Wallet Address: " + myWallet.publicKey);
-Console.WriteLine("Enter port: ");
-
-
-
-p2pServer.Start(port);
 
 void SimulateNewCain()
 {
@@ -130,14 +127,21 @@ void Benchmark(){
     Console.WriteLine($"New: {stopwatch2.Elapsed}");
 }
 
+
+
+
+
+p2pServer.Start(port);
+
 while (true)
 {
     if (!isSPV)
     {
 
 
-        Console.WriteLine($"Current Node Port: {port}");
+        
         Console.WriteLine("\n=== Blockchain Menu ===");
+        Console.WriteLine($"Current Node Port: {port}");
         Console.WriteLine("1. Mine blocks");
         Console.WriteLine("2. Send transaction");
         Console.WriteLine("3. Show blockchain");
@@ -193,11 +197,15 @@ while (true)
                     fee = 1;
                     Console.WriteLine("Fee set to 1");
                 }
+                
+                Console.Write("Enter token symbol (default MAIN): ");
+                var tokenSymbol = Console.ReadLine()?.Trim();
+                if (string.IsNullOrEmpty(tokenSymbol)) tokenSymbol = "MAIN";
 
                 try
                 {
                     var tx = TransactionService.CreateTransaction(myWallet.publicKey, recipientAddress, amount, fee,
-                        myWallet.privateKey);
+                        myWallet.privateKey, tokenSymbol);
                     blockchainService.AddTransactionToMemPool(tx);
                     p2pClient.BroadcastTransactionAsync(tx).Wait();
                     Console.WriteLine("Transaction added to mempool and broadcasted.");
@@ -280,7 +288,7 @@ while (true)
                 if (string.IsNullOrEmpty(coldToken)) coldToken = "MAIN";
                 Console.Write("Enter file path to save transaction: ");
                 var coldPath = Console.ReadLine()?.Trim();
-                if (string.IsNullOrEmpty(coldPath)) break;
+                if (string.IsNullOrEmpty(coldPath)) coldPath = Path.Combine(AppContext.BaseDirectory, "offline_transaction.json");;
 
                 try
                 {
@@ -330,9 +338,16 @@ while (true)
             case "12":
                 var history = explorer.GetTransactionHistory(myWallet.publicKey);
                 Console.WriteLine($"Transaction history for {myWallet.publicKey}:");
-                foreach (var hTx in history)
+                if (history.Count == 0)
                 {
-                    Console.WriteLine(hTx.ToString());
+                    Console.WriteLine("No transactions found.");
+                }
+                else
+                {
+                    foreach (var hTx in history)
+                    {
+                        Console.WriteLine(hTx.ToString());
+                    }
                 }
                 break;
             case "13":
@@ -370,6 +385,7 @@ while (true)
         Console.WriteLine("2. send");
         Console.WriteLine("2. show balance");
         Console.WriteLine("3. ask for SPV prove");
+        Console.WriteLine("4. Mint own token");
         Console.WriteLine("0. exit");
         Console.Write("Enter command: ");
 
@@ -391,6 +407,25 @@ while (true)
             case "3":
                 
 
+                break;
+            case "4":
+                Console.Write("Enter token symbol to mint: ");
+                var mintSymbol = Console.ReadLine()?.Trim();
+                if (string.IsNullOrWhiteSpace(mintSymbol)) break;
+                Console.Write("Enter amount to mint: ");
+                if (!decimal.TryParse(Console.ReadLine(), out var mintAmount)) break;
+
+                try
+                {
+                    var mintTx = new Transaction("MINT", myWallet.publicKey, mintAmount, 0, 0, mintSymbol);
+                    blockchainService.AddTransactionToMemPool(mintTx);
+                    p2pClient.BroadcastTransactionAsync(mintTx).Wait();
+                    Console.WriteLine($"Mint transaction for {mintAmount} {mintSymbol} added to mempool.");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Minting failed: {e.Message}");
+                }
                 break;
             case "0":
                 Console.WriteLine("Goodbye!");

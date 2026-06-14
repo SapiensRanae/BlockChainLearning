@@ -7,10 +7,16 @@ namespace BlockChain.service;
 
 public class P2PClient
 {
-    private readonly List<string> _peers = new List<string>(); // peerAddress -> lastSeen
+    private readonly BlockChainService _blockChainService;
+    private readonly List<string> _peers = new List<string>(); 
     private List<string> _peersToRemove = new List<string>(); 
-    // cache recent chain broadcasts (signature -> timestamp) to avoid ping-pong
+ 
     private readonly Dictionary<string, DateTime> _recentChainBroadcasts = new Dictionary<string, DateTime>();
+
+    public P2PClient(BlockChainService blockChainService)
+    {
+        _blockChainService = blockChainService;
+    }
     public void ConnectToPeer(string peerAddress)
     {
         if (!_peers.Contains(peerAddress))
@@ -19,6 +25,7 @@ public class P2PClient
             Console.WriteLine($"Connected to peer: {peerAddress}");
         }   
     }
+    
 
     public async Task BroadcastTransactionAsync(Transaction transaction)
     {
@@ -90,26 +97,30 @@ public class P2PClient
         }
     }
     
-    public async Task BrodcastChainAsync(List<Block> chain)
+    public async Task BroadcastChainAsync(List<Block> chain, string? selfAddress = null)
     {
-    
-        var last = chain.LastOrDefault();
-        var signature = last != null ? last.Hash + ":" + chain.Count : "empty";
-
-        // avoid broadcasting the same chain multiple times in short interval
-        if (_recentChainBroadcasts.TryGetValue(signature, out var when))
-        {
-            if ((DateTime.UtcNow - when).TotalSeconds < 5)
-            {
-                
-                return;
-            }
-        }
-
         var jsonChain = JsonSerializer.Serialize(chain);
         var message = new NetworkMessage("NEW_CHAIN", jsonChain);
         var jsonMessage = JsonSerializer.Serialize(message);
 
+        await BroadcastMessageAsync(message);
+       
+    }
+    
+    
+    public async Task BrodcastChainAsync(List<Block> chain)
+    {
+        var jsonChain = JsonSerializer.Serialize(chain);
+        var message = new NetworkMessage("NEW_CHAIN", jsonChain);
+        var jsonMessage = JsonSerializer.Serialize(message);
+
+        await BroadcastMessageAsync(message);
+       
+    }
+    
+    private async Task BroadcastMessageAsync(NetworkMessage message)
+    {
+        var jsonMessage = JsonSerializer.Serialize(message);
         try
         {
             foreach (var peer in _peers)
@@ -118,21 +129,21 @@ public class P2PClient
                 var ipAddress = parts[0];
                 var port = int.Parse(parts[1]);
                 
-                using var client = new TcpClient();
+                var client = new TcpClient();
                 await client.ConnectAsync(ipAddress, port);
                 
                 await using var stream = client.GetStream();
                 await using var writer = new StreamWriter(stream) { AutoFlush = true };
                 await writer.WriteLineAsync(jsonMessage);
             }
-            // record timestamp of this broadcast signature
-            _recentChainBroadcasts[signature] = DateTime.UtcNow;
         }
         catch (Exception e)
         {
             Console.WriteLine(e.Message);
-            _peersToRemove.AddRange(_peers);
+            _peersToRemove.AddRange(_peers); 
         }
+        
+        
         if (_peersToRemove.Count > 0)
         {
             foreach (var peer in _peersToRemove)
@@ -142,7 +153,38 @@ public class P2PClient
             }
             _peersToRemove.Clear();
         }
+        
+        
     }
+    
+    public void BroadcastTransactionFromFile(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new Exception("Transaction file not found.");
+        }
+
+        var transaction = JsonSerializer.Deserialize<Transaction>(File.ReadAllText(filePath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (transaction == null)
+        {
+            throw new Exception("Invalid transaction file.");
+        }
+
+        if (!CryptoService.VerifySignature(transaction.ToRawString(), transaction.Signature, transaction.From))
+        {
+            throw new Exception("Invalid transaction signature.");
+        }
+
+        if (transaction.From != "COINBASE" && _blockChainService.GetBalance(transaction.From) < transaction.Amount + transaction.Fee)
+        {
+            throw new Exception("Insufficient balance.");
+        }
+
+        _blockChainService.AddTransactionToMemPool(transaction);
+        var message = new NetworkMessage("NEW_TRANSACTION", JsonSerializer.Serialize(transaction));
+        BroadcastMessageAsync(message).GetAwaiter().GetResult();
+    }
+    
     public void DisconnectFromPeer(string peerAddress)
     {
         _peers.Remove(peerAddress);

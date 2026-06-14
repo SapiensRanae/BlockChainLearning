@@ -11,15 +11,16 @@ namespace BlockChain.models
         public string To { get; set; }
         public decimal Amount { get; set; }
         public decimal Fee { get; set; }
+        public string TokenSymbol { get; set; }
 
         public DateTime Timestamp { get; set; }
-        
+
         public int minBlockHeight { get; set; }
 
-        
+
         public byte[] Signature { get; set; }
 
-        public Transaction(string from, string to, decimal amount, decimal fee = 0.01m, int minBlockHeight = 0)
+        public Transaction(string from, string to, decimal amount, decimal fee = 0.01m, int minBlockHeight = 0, string tokenSymbol = "MAIN")
         {
             Id = Guid.NewGuid().ToString();
             From = from;
@@ -28,17 +29,18 @@ namespace BlockChain.models
             Timestamp = DateTime.UtcNow;
             Fee = fee;
             this.minBlockHeight = minBlockHeight;
-            
+            TokenSymbol = tokenSymbol;
+
         }
 
         public string ToRawString()
         {
-            return $"{Id}|{From}|{To}|{Amount}|{Timestamp}|{Fee}";
+            return $"{Id}|{From}|{To}|{Amount}|{Timestamp}|{Fee}|{TokenSymbol}";
         }
 
         public override string ToString()
         {
-            return $"Transaction ID: {Id} From: {From} To: {To} Amount: {Amount} Timestamp: {Timestamp} Signature: {Signature} Fee: {Fee}";
+            return $"Transaction ID: {Id} From: {From} To: {To} Amount: {Amount} Token: {TokenSymbol} Timestamp: {Timestamp} Signature: {Signature} Fee: {Fee}";
         }
 
 
@@ -59,9 +61,9 @@ namespace BlockChain.service
                 _blockChainService = blockChainService;
             }
 
-            public static Transaction CreateTransaction(string from, string to, decimal amount, decimal fee, string privateKey)
+            public static Transaction CreateTransaction(string from, string to, decimal amount, decimal fee, string privateKey, string tokenSymbol = "MAIN")
             {
-                var tx = new Transaction(from, to, amount, fee);
+                var tx = new Transaction(from, to, amount, fee, 0, tokenSymbol);
                 SignTransaction(tx, privateKey);
                 var validation = ValidateTransaction(tx);
                 if (!validation.isValid)
@@ -76,7 +78,7 @@ namespace BlockChain.service
 
             public static (bool isValid, string error) ValidateTransaction(Transaction tx)
             {
-                if (tx.From == "COINBASE") return (true, null); // Coinbase transactions are always valid
+                if (tx.From == "COINBASE" || tx.From == "MINT") return (true, null); // Coinbase and Mint transactions are always valid
                 if (tx == null) return (false, "Transaction is null");
                 if (string.IsNullOrEmpty(tx.From)) return (false, "From address is required");
                 if (string.IsNullOrEmpty(tx.To)) return (false, "To address is required");
@@ -86,16 +88,16 @@ namespace BlockChain.service
                 if (tx.Timestamp > DateTime.UtcNow.AddMinutes(1)) return (false, "Transaction is too recent");
                //moved to mempool if (blockChainService.GetBalance(tx.From) < tx.Amount+tx.Fee) return (false, "Insufficient balance");
                 if (tx.From == tx.To) return (false, "Transaction cannot send to itself");
-                
+
                 return (true, null);
             }
 
             public static void SignTransaction(Transaction tx, string privateKey)
             {
                 var signature = CryptoService.Sign(tx.ToRawString(), privateKey);
-                
-                tx.Signature = signature; 
-                
+
+                tx.Signature = signature;
+
             }
         }
 

@@ -10,11 +10,13 @@ public class P2PServer
 {
     private readonly BlockChainService _blockchainService;
     private readonly P2PClient _p2PClient;
+    private readonly HashingService _hashingService;
 
-    public P2PServer(BlockChainService blockchainService, P2PClient p2PClient)
+    public P2PServer(BlockChainService blockchainService, P2PClient p2PClient, HashingService hashingService)
     {
         _blockchainService = blockchainService;
         _p2PClient = p2PClient;
+        _hashingService = hashingService;
     }
 
     public void Start(int port)
@@ -95,6 +97,30 @@ public class P2PServer
                                 Console.WriteLine("Received new chain but did not adopt it (not longer).");
                             }
                             
+                        }
+                    }
+                }
+
+                if (message.Type == "NEW_BLOCK")
+                {
+                    var newBlock = JsonSerializer.Deserialize<Block>(message.Data);
+                    if (newBlock != null)
+                    {
+                        var lastBlock = _blockchainService.Chain.LastOrDefault();
+
+                        if (lastBlock != null &&
+                            lastBlock.Hash == newBlock.PreviousHash &&
+                            _hashingService.ComputeHash(newBlock) == newBlock.Hash)
+                        {
+                            _blockchainService.Chain.Add(newBlock);
+                            _blockchainService.ValidateAndRebuildState();
+
+                            var includedTxIds = newBlock.Transactions
+                                .Select(t => t.Id)
+                                .ToHashSet();
+
+                            _blockchainService.PendingTransactions.RemoveAll(
+                                t => includedTxIds.Contains(t.Id));
                         }
                     }
                 }

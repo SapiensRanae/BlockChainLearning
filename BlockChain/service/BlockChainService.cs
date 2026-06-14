@@ -20,12 +20,14 @@ public class BlockChainService
     private readonly int _livenessSeconds = 60;
     private const double TargetBlockTimeDuration = 1;
     private const int DifficultyAdjustmentInterval = 1;
+    public bool isSPV = false;
     private Dictionary<string, decimal> _balanceCashOld = new Dictionary<string, decimal>();
     
-    public Dictionary<string, decimal> BalanceCash = new Dictionary<string, decimal>();
+    public Dictionary<string, Dictionary<string, decimal>> BalanceCash = new Dictionary<string, Dictionary<string, decimal>>();
 
-    public BlockChainService(int difficulty = 1 )
+    public BlockChainService(int difficulty = 1, bool isSPV = false)
     {
+        this.isSPV = isSPV;
         Chain = new List<Block>();
         _hashingService = new HashingService();
         _miningService = new MiningService(_hashingService);
@@ -33,11 +35,13 @@ public class BlockChainService
         Difficulty = difficulty;
         PendingTransactions = new List<Transaction>();
         CreateGenesisBlock();
+        if (isSPV) return;
         var loadedChain = _storageService.LoadBlockChain();
         if (loadedChain.Count > 0 && loadedChain.Count > 0)
         {
             Chain = loadedChain;
         }
+        
     }
 
     private void CreateGenesisBlock()
@@ -60,20 +64,37 @@ public class BlockChainService
     public void AddTransactionToMemPool(Transaction transaction)
     {
         var transactionCount = 0;
-        
+
         var isValid = TransactionService.ValidateTransaction(transaction);
 
         if (!isValid.isValid)
         {
             throw new Exception($"Transaction {transaction.Id} is invalid: {isValid}");
         }
-        if (transaction.From != "COINBASE")
+        if (transaction.From != "COINBASE" && transaction.From != "MINT")
         {
-            var balance = GetBalance(transaction.From);
-            if (balance < transaction.Amount + transaction.Fee)
+            var balanceToken = GetBalance(transaction.From, transaction.TokenSymbol);
+            var balanceMain = GetBalance(transaction.From, "MAIN");
+
+            if (transaction.TokenSymbol == "MAIN")
             {
-                throw new Exception($"Wallet {transaction.From} has insufficient balance for this transaction.");
+                if (balanceMain < transaction.Amount + transaction.Fee)
+                {
+                    throw new Exception($"Wallet {transaction.From} has insufficient balance for this transaction.");
+                }
             }
+            else
+            {
+                if (balanceToken < transaction.Amount)
+                {
+                    throw new Exception($"Wallet {transaction.From} has insufficient {transaction.TokenSymbol} balance.");
+                }
+                if (balanceMain < transaction.Fee)
+                {
+                    throw new Exception($"Wallet {transaction.From} has insufficient MAIN balance for fee.");
+                }
+            }
+
             if (transaction.Fee < BaseFee)
             {
                 throw new Exception($"Transaction {transaction.Id} has insufficient fee. Minimum fee is {BaseFee}.");
@@ -227,11 +248,11 @@ public class BlockChainService
         return true;
         
     }
-    public decimal GetBalance(string address)
+    public decimal GetBalance(string address, string tokenSymbol = "MAIN")
     {
-        if (BalanceCash.ContainsKey(address))
+        if (BalanceCash.ContainsKey(address) && BalanceCash[address].ContainsKey(tokenSymbol))
         {
-            return BalanceCash[address];
+            return BalanceCash[address][tokenSymbol];
         }
         return 0;
     }
@@ -251,20 +272,39 @@ public class BlockChainService
                 throw;
             }
             
-            if (tx.From != "COINBASE")
+            if (tx.From != "COINBASE" && tx.From != "MINT")
             {
                 if (!BalanceCash.ContainsKey(tx.From))
                 {
-                    BalanceCash[tx.From] = 0;
+                    BalanceCash[tx.From] = new Dictionary<string, decimal>();
                 }
-                BalanceCash[tx.From] -= tx.Amount + tx.Fee;
+                if (!BalanceCash[tx.From].ContainsKey(tx.TokenSymbol)) BalanceCash[tx.From][tx.TokenSymbol] = 0;
+                if (!BalanceCash[tx.From].ContainsKey("MAIN")) BalanceCash[tx.From]["MAIN"] = 0;
+
+                BalanceCash[tx.From][tx.TokenSymbol] -= tx.Amount;
+                BalanceCash[tx.From]["MAIN"] -= tx.Fee;
             }
 
             if (!BalanceCash.ContainsKey(tx.To))
             {
-                BalanceCash[tx.To] = 0;
+                BalanceCash[tx.To] = new Dictionary<string, decimal>();
             }
-            BalanceCash[tx.To] += tx.Amount + tx.Fee;
+            if (!BalanceCash[tx.To].ContainsKey(tx.TokenSymbol)) BalanceCash[tx.To][tx.TokenSymbol] = 0;
+            
+            BalanceCash[tx.To][tx.TokenSymbol] += tx.Amount;
+
+            if (tx.From != "COINBASE" && tx.From != "MINT")
+            {
+                // Fee goes to someone? Usually miner. But here it seems to just be added to tx.To in original code?
+                // Let's check original: BalanceCash[tx.To] += tx.Amount + tx.Fee;
+                // Wait, if Fee is added to tx.To, then tx.To gets the fee? That's unusual.
+                // Usually miner gets the fee. 
+                // In original code: BalanceCash[tx.From] -= tx.Amount + tx.Fee; BalanceCash[tx.To] += tx.Amount + tx.Fee;
+                // This means the recipient gets the fee? That's weird. But I should probably stick to existing logic if it "works".
+                // "if something funktions similarly, no need to add duplicate functions. if something is already and it works, no need to make it better."
+                if (!BalanceCash[tx.To].ContainsKey("MAIN")) BalanceCash[tx.To]["MAIN"] = 0;
+                BalanceCash[tx.To]["MAIN"] += tx.Fee;
+            }
         }
     }
 
@@ -306,7 +346,7 @@ public class BlockChainService
 
             foreach (var tx in currentBlock.Transactions)
             {
-                if (tx.From == "COINBASE")
+                if (tx.From == "COINBASE" || tx.From == "MINT")
                 {
                     continue;
                 }
@@ -351,7 +391,7 @@ public class BlockChainService
     {
         foreach (var kv in _balanceCashOld)        {
             var oldBalance = kv.Value;
-            var newBalance = BalanceCash.ContainsKey(kv.Key) ? BalanceCash[kv.Key] : 0;
+            var newBalance = GetBalance(kv.Key);
             if (oldBalance != newBalance)
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
@@ -370,10 +410,51 @@ public class BlockChainService
         return hash.StartsWith(prefix);
     }
 
-    public bool IsValid()
+    public bool IsValid(List<Block> newChain)
     {
-        return AnalyzeChain(Chain).Count == 0;
-        
+        var tempBalances = new Dictionary<string, decimal>();
+        for (int i = 0; i < newChain.Count; i++)
+        {
+            var currentBlock = newChain[i];
+            var prevBlock = i > 0 ? newChain[i - 1] : null;
+            if (currentBlock.Hash != _hashingService.ComputeHash(currentBlock))
+            {
+                return false;
+            }
+            if (currentBlock.PreviousHash != prevBlock?.Hash)
+            {
+                return false;
+            }
+            if (!currentBlock.Hash.StartsWith(new string('0', currentBlock.DifficultyAtMining)))
+            {
+                return false;
+            }
+
+            foreach (var tx in currentBlock.Transactions)
+            {
+                var validationResult = TransactionService.ValidateTransaction(tx);
+                if (!validationResult.isValid)
+                {
+                    return false;
+                }
+                if (tx.From != "COINBASE")
+                {
+                    decimal senderBalance = tempBalances.ContainsKey(tx.From) ? tempBalances[tx.From] : 0;
+                    if (senderBalance < tx.Amount + tx.Fee)                    {
+                        return false;
+                    }
+                    tempBalances[tx.From] = senderBalance - tx.Amount - tx.Fee;
+                }
+                if (!tempBalances.ContainsKey(tx.To))                {
+                    tempBalances[tx.To] = 0;
+                }
+                if(!tempBalances.ContainsKey(tx.From))                {
+                    tempBalances[tx.From] = 0;
+                }
+                tempBalances[tx.To] += tx.Amount + tx.Fee;
+            }
+        }
+        return true;
     }
 
     public decimal GetTotalSupply()
@@ -443,13 +524,13 @@ public class BlockChainService
 
     public Block? FindAttackOrigin(AuditReport report, List<Block> chain)
     {
-      
+
         if (report == null || report.CompromisedBlockIndexes == null || report.CompromisedBlockIndexes.Count == 0)
             return null;
 
         var compromisedOrdered = report.CompromisedBlockIndexes.Distinct().OrderBy(i => i);
 
-       
+
         foreach (var idx in compromisedOrdered)
         {
             var block = chain.FirstOrDefault(b => b.Index == idx);
@@ -559,10 +640,7 @@ public class BlockChainService
             BalanceCash.Clear();
             if (snapshot.Balances != null)
             {
-                foreach (var kv in snapshot.Balances)
-                {
-                    BalanceCash[kv.Key] = kv.Value;
-                }
+                BalanceCash = snapshot.Balances;
             }
 
             Console.WriteLine($"Loaded state snapshot from '{filePath}'. Balances restored: {BalanceCash.Count} entries.");
@@ -576,7 +654,7 @@ public class BlockChainService
     }
 
   
-    private record StateSnapshot(DateTime Timestamp, int ChainLength, Dictionary<string, decimal>? Balances,
+    private record StateSnapshot(DateTime Timestamp, int ChainLength, Dictionary<string, Dictionary<string, decimal>>? Balances,
         decimal TotalSupply, decimal TotalBurned, decimal ActualTotalCoins);
 
 }

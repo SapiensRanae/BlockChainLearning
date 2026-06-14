@@ -2,79 +2,70 @@ using BlockChain.models;
 
 namespace BlockChain.service;
 
-public class BlockchainExplorer(BlockChainService blockChainService, List<Block> chain)
+public class BlockchainExplorer
 {
-    private BlockChainService _blockChainService = blockChainService;
-    public List<Block> chain = chain;
+    private readonly BlockChainService _blockChainService;
+    public List<Block> Chain { get; }
 
-    public decimal getTotalVolume()
+    public BlockchainExplorer(BlockChainService blockChainService, List<Block> chain)
     {
-        return chain.Sum(block => block.Transactions.Sum(tx => tx.Amount));
+        _blockChainService = blockChainService;
+        Chain = chain;
     }
 
-    public Transaction? getLargestTransaction()
+    public decimal GetTotalVolume()
     {
-        decimal maxAmount = 0;
-        foreach (var tx in chain.SelectMany(block => block.Transactions))
-        {
-            if (tx.Amount > maxAmount)
-            {
-                maxAmount = tx.Amount;
-            }
-        }
-
-        return chain.SelectMany(block => block.Transactions).FirstOrDefault(tx => tx.Amount == maxAmount);
-
+        return Chain.Sum(block => block.Transactions.Sum(tx => tx.Amount));
     }
-    
-    public List<Transaction> getAddressHistory(string address)
+
+    public Transaction? GetLargestTransaction()
     {
-        List<Transaction> history = new List<Transaction>();
-        foreach (var tx in chain.SelectMany(block => block.Transactions))
-        {
-            if (tx.From == address || tx.To == address)
-            {
-                history.Add(tx);
-            }
-                
-        }
-        return history;
+        return Chain.SelectMany(block => block.Transactions)
+            .OrderByDescending(tx => tx.Amount)
+            .FirstOrDefault();
+    }
+
+    public List<Transaction> GetTransactionHistory(string address)
+    {
+        return Chain.SelectMany(block => block.Transactions)
+            .Where(tx => tx.From == address || tx.To == address)
+            .OrderByDescending(tx => tx.Timestamp)
+            .ToList();
+    }
+
+    public decimal GetTotalFeesEarned(string minerAddress)
+    {
+        return Chain
+            .Where(block => block.Transactions.Count > 0)
+            .Where(block => (block.Transactions[0].From == "COINBASE" || block.Transactions[0].From == "MINT") && block.Transactions[0].To == minerAddress)
+            .Sum(block => block.Transactions.Where(tx => tx.From != "COINBASE" && tx.From != "MINT").Sum(tx => tx.Fee));
+    }
+
+    public Transaction? FindTransactionById(string txId)
+    {
+        return Chain.SelectMany(block => block.Transactions)
+            .Concat(_blockChainService.PendingTransactions)
+            .FirstOrDefault(tx => tx.Id == txId);
+    }
+
+    public Block? FindBlockByTransactionId(string txId)
+    {
+        return Chain.FirstOrDefault(block => block.Transactions.Any(tx => tx.Id == txId));
     }
 
     public (Block? block, Transaction? tx) FindTransactionLocation(string txId)
     {
-
-        foreach (var block in chain)
+        var tx = FindTransactionById(txId);
+        if (tx == null)
         {
-            foreach (var tx in block.Transactions)
-            {
-                if (tx.Id == txId)
-                {
-                    return (block, tx);
-                }
-            }
+            return (null, null);
         }
 
-        foreach (var tx in blockChainService.PendingTransactions)
-        {
-            if (tx.Id == txId)
-            {
-                return (null, tx);
-            }
-        }
-        
-        return (null, null);
+        return (FindBlockByTransactionId(txId), tx);
     }
+
     public decimal GetTotalCoins()
     {
-        var totalCoins = 0m;
-        foreach (var block in chain)
-        {
-            foreach (var tx in block.Transactions)
-            {
-                totalCoins += tx.Amount;
-            }
-        }
-        return totalCoins;
+        return Chain.Sum(block => block.Transactions.Sum(tx => tx.Amount));
     }
 }

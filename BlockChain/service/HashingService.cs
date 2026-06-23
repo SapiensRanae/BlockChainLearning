@@ -27,26 +27,60 @@ public class HashingService
     
     public string BuildMerkleTree(List<Transaction> transactions)
     {
-        if (transactions.Count == 0 || transactions == null)
+        if (transactions == null || transactions.Count == 0)
             return string.Empty;
-        var hashAllTransactions = transactions.Select(tx => tx.ToRawString()).ToList();
-        while (hashAllTransactions.Count > 1)
+        var hashes = transactions.Select(tx => ComputeHash(tx.ToRawString())).ToList();
+        while (hashes.Count > 1)
         {
             var tempList = new List<string>();
-            for (int i = 0; i < hashAllTransactions.Count; i += 2)
+            for (int i = 0; i < hashes.Count; i += 2)
             {
-                if (i + 1 < hashAllTransactions.Count)
+                if (i + 1 < hashes.Count)
+                    tempList.Add(ComputeHash(hashes[i] + hashes[i + 1]));
+                else
+                    tempList.Add(hashes[i]);
+            }
+            hashes = tempList;
+        }
+        return hashes[0];
+    }
+
+    public List<string> GetMerkleProof(List<Transaction> transactions, string targetTxId)
+    {
+        var hashes = transactions.Select(tx => ComputeHash(tx.ToRawString())).ToList();
+        var proof = new List<string>();
+        int index = transactions.FindIndex(tx => tx.Id == targetTxId);
+        if (index == -1) return proof;
+
+        while (hashes.Count > 1)
+        {
+            var tempList = new List<string>();
+            for (int i = 0; i < hashes.Count; i += 2)
+            {
+                if (i + 1 < hashes.Count)
                 {
-                    string combinedHash = hashAllTransactions[i] + hashAllTransactions[i + 1];
-                    tempList.Add(ComputeHash(combinedHash));
+                    if (i == index) proof.Add(hashes[i + 1]);
+                    else if (i + 1 == index) proof.Add(hashes[i]);
+                    tempList.Add(ComputeHash(hashes[i] + hashes[i + 1]));
                 }
                 else
                 {
-                    tempList.Add(hashAllTransactions[i]);
+                    tempList.Add(hashes[i]);
                 }
             }
-            hashAllTransactions = tempList;
+            index /= 2;
+            hashes = tempList;
         }
-        return hashAllTransactions[0];
+        return proof;
     }
-} 
+
+    public bool VerifyMerkleProof(string txHash, List<string> proof, string expectedMerkleRoot)
+    {
+        string currentHash = txHash;
+        foreach (var p in proof)
+        {
+            currentHash = ComputeHash(currentHash + p);
+        }
+        return currentHash == expectedMerkleRoot;
+    }
+}

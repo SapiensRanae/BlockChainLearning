@@ -10,7 +10,8 @@ public class P2PClient
     private readonly BlockChainService _blockChainService;
     private readonly List<string> _peers = new List<string>(); 
     private List<string> _peersToRemove = new List<string>(); 
- 
+    private const string PeersFile = "peers.json";
+
     private readonly Dictionary<string, DateTime> _recentChainBroadcasts = new Dictionary<string, DateTime>();
 
     private readonly Dictionary<string, DateTime> _recentTransactions = new Dictionary<string, DateTime>();
@@ -24,8 +25,54 @@ public class P2PClient
         if (!_peers.Contains(peerAddress))
         {
             _peers.Add(peerAddress);
+            SavePeers();
             Console.WriteLine($"Connected to peer: {peerAddress}");
         }   
+    }
+
+    private void SavePeers()
+    {
+        File.WriteAllText(PeersFile, JsonSerializer.Serialize(_peers));
+    }
+
+    private void LoadPeers()
+    {
+        if (File.Exists(PeersFile))
+        {
+            var loaded = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(PeersFile));
+            if (loaded != null)
+            {
+                foreach (var peer in loaded)
+                {
+                    if (!_peers.Contains(peer)) _peers.Add(peer);
+                }
+            }
+        }
+    }
+
+    public async Task InitPeersAsync()
+    {
+        LoadPeers();
+        if (_peers.Count == 0) return;
+
+        var tasks = _peers.ToList().Select(async peer =>
+        {
+            try
+            {
+                var parts = peer.Split(':');
+                using var client = new TcpClient();
+                var connectTask = client.ConnectAsync(parts[0], int.Parse(parts[1]));
+                if (await Task.WhenAny(connectTask, Task.Delay(1000)) == connectTask)
+                {
+                    await connectTask;
+                    Console.WriteLine($"Restored connection to peer: {peer}");
+                }
+            }
+            catch
+            {
+            }
+        });
+        await Task.WhenAll(tasks);
     }
     
 
@@ -105,28 +152,13 @@ public class P2PClient
         }
     }
     
-    public async Task BroadcastChainAsync(List<Block> chain, string? selfAddress = null)
+    public async Task BroadcastChainAsync(List<Block> chain)
     {
-        var jsonChain = JsonSerializer.Serialize(chain);
-        var message = new NetworkMessage("NEW_CHAIN", jsonChain);
-        var jsonMessage = JsonSerializer.Serialize(message);
-
+        var message = new NetworkMessage("NEW_CHAIN", JsonSerializer.Serialize(chain));
         await BroadcastMessageAsync(message);
-       
     }
     
-    
-    public async Task BrodcastChainAsync(List<Block> chain)
-    {
-        var jsonChain = JsonSerializer.Serialize(chain);
-        var message = new NetworkMessage("NEW_CHAIN", jsonChain);
-        var jsonMessage = JsonSerializer.Serialize(message);
-
-        await BroadcastMessageAsync(message);
-       
-    }
-    
-    private async Task BroadcastMessageAsync(NetworkMessage message)
+    public async Task BroadcastMessageAsync(NetworkMessage message)
     {
         var jsonMessage = JsonSerializer.Serialize(message);
         try

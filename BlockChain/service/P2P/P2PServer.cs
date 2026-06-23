@@ -89,7 +89,7 @@ public class P2PServer
                         if (_blockchainService.Chain.Count > before)
                         {
                             Console.WriteLine($"Adopted new chain (length { _blockchainService.Chain.Count }), propagating to peers.");
-                            await _p2PClient.BrodcastChainAsync(_blockchainService.Chain);
+                            await _p2PClient.BroadcastChainAsync(_blockchainService.Chain);
                         }
                         else
                         {
@@ -126,6 +126,41 @@ public class P2PServer
                     }
                 }
 
+                if (message.Type == "REQUEST_SPV_PROOF")
+                {
+                    var txId = message.Data;
+                    var block = _blockchainService.Chain.FirstOrDefault(b => b.Transactions.Any(t => t.Id == txId));
+                    if (block != null)
+                    {
+                        var proof = _hashingService.GetMerkleProof(block.Transactions, txId);
+                        var spvData = new { TransactionId = txId, Proof = proof, ExpectedRoot = block.MerkleRoot, Transactions = block.Transactions };
+                        var response = new NetworkMessage("SPV_RESULT", JsonSerializer.Serialize(spvData));
+                        await writer.WriteLineAsync(JsonSerializer.Serialize(response));
+                    }
+                }
+
+                if (message.Type == "SPV_RESULT")
+                {
+                    var data = JsonSerializer.Deserialize<JsonElement>(message.Data);
+                    var txId = data.GetProperty("TransactionId").GetString();
+                    var expectedRoot = data.GetProperty("ExpectedRoot").GetString();
+                    var proof = JsonSerializer.Deserialize<List<string>>(data.GetProperty("Proof").GetRawText());
+                    var txs = JsonSerializer.Deserialize<List<Transaction>>(data.GetProperty("Transactions").GetRawText());
+
+                    bool rootExists = _blockchainService.Chain.Any(b => b.MerkleRoot == expectedRoot);
+                    if (!rootExists)
+                    {
+                        Console.WriteLine("[SPV ALERT] Full node attempted to provide a fake Merkle root! Proof rejected.");
+                        client.Close();
+                        return;
+                    }
+
+                    bool isValid = _hashingService.VerifyMerkleProof(txId, proof, expectedRoot);
+                    if (isValid)
+                        Console.WriteLine($"[SPV] Transaction {txId} is VERIFIED in blockchain.");
+                    else
+                        Console.WriteLine($"[SPV] Transaction {txId} verification FAILED.");
+                }
             }
         }
 

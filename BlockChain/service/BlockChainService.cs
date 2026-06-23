@@ -122,7 +122,6 @@ public class BlockChainService
         {
             Reward = Math.Max(1, Reward / 2);
 
-            // Console.WriteLine($"Reward halved to {Reward}");
         }
     }
 
@@ -139,7 +138,7 @@ public class BlockChainService
         return transactionsToDelete.Count;
     }
 
-    public void MinePendingTransactions(string minerAdress)
+    public void MinePendingTransactions(string minerAddress)
     {
         EvictStaleTransactions(_livenessSeconds);
         var transactionsToInclude = PendingTransactions
@@ -149,13 +148,10 @@ public class BlockChainService
             .Take(MaxTransactionPerBlock)
             .ToList();
 
-        
-
         var totalTips = transactionsToInclude.Sum(tx => tx.Fee - BaseFee);
         var totalReward = Reward + totalTips;
-        
-        
-        var rewardingTransactions = new Transaction("COINBASE", minerAdress, totalReward, 0);
+
+        var rewardingTransactions = new Transaction("COINBASE", minerAddress, totalReward, 0);
         
         transactionsToInclude.Insert(0,rewardingTransactions);
         
@@ -206,7 +202,7 @@ public class BlockChainService
             Difficulty = Math.Max(1, Difficulty - 1);
         }
 
-        Difficulty = Math.Max(1, Math.Min(Difficulty, 1));
+        Difficulty = Math.Max(1, Difficulty);
         Console.WriteLine($"Adjusted difficulty to {Difficulty}");
     }
 
@@ -300,13 +296,6 @@ public class BlockChainService
 
             if (tx.From != "COINBASE" && tx.From != "MINT")
             {
-                // Fee goes to someone? Usually miner. But here it seems to just be added to tx.To in original code?
-                // Let's check original: BalanceCash[tx.To] += tx.Amount + tx.Fee;
-                // Wait, if Fee is added to tx.To, then tx.To gets the fee? That's unusual.
-                // Usually miner gets the fee. 
-                // In original code: BalanceCash[tx.From] -= tx.Amount + tx.Fee; BalanceCash[tx.To] += tx.Amount + tx.Fee;
-                // This means the recipient gets the fee? That's weird. But I should probably stick to existing logic if it "works".
-                // "if something funktions similarly, no need to add duplicate functions. if something is already and it works, no need to make it better."
                 if (!BalanceCash[tx.To].ContainsKey("MAIN")) BalanceCash[tx.To]["MAIN"] = 0;
                 BalanceCash[tx.To]["MAIN"] += tx.Fee;
             }
@@ -369,7 +358,6 @@ public class BlockChainService
     {
         
       if (newChain.Count < Chain.Count) return;
-     // if (AnalyzeChain(newChain).Count > 0) return;
       
       Chain = newChain;
       

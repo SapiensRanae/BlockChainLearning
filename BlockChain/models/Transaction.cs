@@ -78,7 +78,7 @@ namespace BlockChain.service
 
             public static (bool isValid, string error) ValidateTransaction(Transaction tx)
             {
-                if (tx.From == "COINBASE" || tx.From == "MINT") return (true, null); // Coinbase and Mint transactions are always valid
+                if (tx.From == "COINBASE" || tx.From == "MINT") return (true, null);
                 if (tx == null) return (false, "Transaction is null");
                 if (string.IsNullOrEmpty(tx.From)) return (false, "From address is required");
                 if (string.IsNullOrEmpty(tx.To)) return (false, "To address is required");
@@ -86,7 +86,6 @@ namespace BlockChain.service
                 if (!CryptoService.VerifySignature( tx.ToRawString(), tx.Signature, tx.From)) return (false, "Invalid signature");
                 if (tx.Timestamp < DateTime.UtcNow.AddMinutes(-1)) return (false, "Transaction is too old");
                 if (tx.Timestamp > DateTime.UtcNow.AddMinutes(1)) return (false, "Transaction is too recent");
-               //moved to mempool if (blockChainService.GetBalance(tx.From) < tx.Amount+tx.Fee) return (false, "Insufficient balance");
                 if (tx.From == tx.To) return (false, "Transaction cannot send to itself");
 
                 return (true, null);
